@@ -16,7 +16,7 @@ Blockchain Programming Final Assignment
 8. [Security Notes](#8-security-notes)
 9. [Bonus Features](#9-bonus-features)
 
-Quick check: [Development Status](#-Development-Status)
+Quick check: [Development Status](#development-status)
 
 ---
 
