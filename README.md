@@ -11,10 +11,11 @@ Blockchain Programming Final Assignment
 3. [Project Structure](#3-project-structure)
 4. [Personal Variant](#4-personal-variant)
 5. [Getting Started](#5-getting-started)
-6. [Contract APIs](#6-contract-apis)
-7. [Design Decisions](#7-design-decisions)
-8. [Security Notes](#8-security-notes)
-9. [Bonus Features](#9-bonus-features)
+6. [Business Rules](#6-business-rules)
+7. [Contract APIs](#7-contract-apis)
+8. [Design Decisions](#8-design-decisions)
+9. [Security Notes](#9-security-notes)
+10. [Bonus Features](#10-bonus-features)
 
 Quick check: [Development Status](#development-status)
 
@@ -107,7 +108,22 @@ npx hardhat coverage
 
 ---
 
-# 6. Contract APIs
+# 6. Business Rules
+
+The complete business rules are documented in:
+
+- docs/business-rules.md
+
+This document defines:
+
+- Business constraints
+- Security purpose of each rule
+- Expected implementation
+- Verification strategy
+
+---
+
+# 7. Contract APIs
 
 Contract APIs are documented in:
 
@@ -115,7 +131,7 @@ Contract APIs are documented in:
 
 ---
 
-# 7. Design Decisions
+# 8. Design Decisions
 
 This section will be completed during the implementation phase.
 
@@ -129,7 +145,7 @@ This section will be completed during the implementation phase.
 
 ---
 
-# 8. Security Notes
+# 9. Security Notes
 
 Security considerations will be documented in:
 
@@ -145,7 +161,7 @@ Topics include:
 
 ---
 
-# 9. Bonus Features
+# 10. Bonus Features
 
 ## C1 — Principal Protection
 
