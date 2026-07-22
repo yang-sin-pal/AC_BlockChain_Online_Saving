@@ -6,15 +6,13 @@
 
 | Ngày | Trạng thái | Ghi chú |
 |------|-----------|---------|
-| Ngày 1 | ~80% xong | Thiếu `@openzeppelin/contracts` trong package.json (block compile). NatSpec còn thiếu `@param`/`@return` |
+| Ngày 1 | **100% xong** | All 6 tasks done. Fixes: @openzeppelin install, import paths, OZ v5 ReentrancyGuard path, evmVersion cancun, BOM stripped, NatSpec completed. Compile + test pass. |
 | Ngày 2 | Chưa bắt đầu | VaultManager.sol trống, openDeposit là stub, tests trống |
 | Ngày 3 | Chưa bắt đầu | Interest/withdraw/renew đều là stub |
 | Ngày 4 | Chưa bắt đầu | — |
 | Ngày 5–10 | Chưa bắt đầu | — |
 
-**Blocker critical:** `@openzeppelin/contracts` chưa thêm vào `package.json` — `npx hardhat compile` sẽ fail. Cần chạy `npm install @openzeppelin/contracts` trước khi làm gì khác.
-
-**Lịch:** Hôm nay là 22/7 (Ngày 3 theo plan). Đang bị trễ ~2 ngày.
+**Lịch:** Hôm nay là 22/7 (Ngày 3 theo plan). Đang bị trễ ~2 ngày. Blocker Day 1 đã resolve — project compile được.
 
 ## Cách dùng file này (dành cho agent)
 
