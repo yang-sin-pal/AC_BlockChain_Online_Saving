@@ -16,8 +16,8 @@ sequenceDiagram
     User->>USDC: approve(amount)
     User->>Core: openDeposit(planId, amount)
 
-    Core->>USDC: transferFrom(user, Vault, amount)
-    USDC-->>Vault: USDC transferred
+    Core->>USDC: transferFrom(user, Core, amount)
+    USDC-->>Core: USDC transferred
 
     Core->>Core: Validate plan
     Core->>Core: Create Deposit
@@ -37,15 +37,16 @@ sequenceDiagram
     participant Vault as VaultManager
     participant USDC as MockUSDC
 
-    User->>Core: withdraw(tokenId)
+    User->>Core: withdrawAtMaturity(depositId)
 
     Core->>Core: Check maturity
     Core->>Core: Calculate interest
 
-    Core->>Vault: Request payout
-    Vault->>USDC: transfer(user, principal + interest)
+    Core->>USDC: transfer(user, principal)
+    Core->>Vault: payInterest(user, interest)
+    Vault->>USDC: transfer(user, interest)
 
-    Vault-->>User: Receive USDC
+    Core-->>User: Receive principal + interest
 ```
 
 ---
@@ -56,18 +57,17 @@ sequenceDiagram
 sequenceDiagram
     actor User
     participant Core as SavingCore
-    participant Vault as VaultManager
     participant USDC as MockUSDC
 
-    User->>Core: withdraw(tokenId)
+    User->>Core: earlyWithdraw(depositId)
 
     Core->>Core: Check deposit status
     Core->>Core: Calculate penalty
 
-    Core->>Vault: Request payout
-    Vault->>USDC: transfer(user, principal - penalty)
+    Core->>USDC: transfer(user, principal - penalty)
+    Core->>USDC: transfer(feeReceiver, penalty)
 
-    Vault-->>User: Receive USDC
+    Core-->>User: Receive principal - penalty
 ```
 
 ---
@@ -78,12 +78,20 @@ sequenceDiagram
 sequenceDiagram
     actor User
     participant Core as SavingCore
+    participant Vault as VaultManager
+    participant USDC as MockUSDC
 
-    User->>Core: renew(tokenId)
+    User->>Core: renewDeposit(depositId, newPlanId)
 
     Core->>Core: Verify maturity
+    Core->>Core: Calculate interest
+
+    Core->>Vault: payInterest(SavingCore, interest)
+    Vault->>USDC: transfer(SavingCore, interest)
+
+    Core->>Core: newPrincipal = old + interest
     Core->>Core: Create new deposit
-    Core->>Core: Update maturity date
+    Core->>Core: Update old deposit status to ManualRenewed
 
     Core-->>User: Deposit Renewed
 ```
@@ -128,6 +136,6 @@ sequenceDiagram
 # Notes
 
 - All deposits are stored in `SavingCore`.
-- User funds are held by `VaultManager`.
+- User funds (principal) are held by `SavingCore`. Bank interest pool is held by `VaultManager`.
 - `MockUSDC` is used only for local testing.
 - Each successful deposit mints an ERC721 certificate representing ownership.
