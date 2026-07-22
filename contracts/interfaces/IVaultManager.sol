@@ -2,24 +2,24 @@
 pragma solidity ^0.8.20;
 
 /// @title IVaultManager
-/// @notice Interface cho kho tiền lãi của ngân hàng (tách biệt hoàn toàn với tiền gốc của user).
+/// @notice Interface for the bank's interest vault (completely separate from user principal).
 interface IVaultManager {
-    /// @notice Admin nạp thêm tiền vào vault để trả lãi cho user.
-    /// @param amount Số USDC muốn nạp vào vault.
+    /// @notice Admin funds the vault to pay interest to users.
+    /// @param amount Amount of USDC to deposit into the vault.
     function fundVault(uint256 amount) external;
 
-    /// @notice Admin rút bớt tiền khỏi vault (trong giới hạn an toàn — xem Bonus C2).
-    /// @param amount Số USDC muốn rút khỏi vault.
+    /// @notice Admin withdraws excess funds from the vault (within safe limits — see Bonus C2).
+    /// @param amount Amount of USDC to withdraw from the vault.
     function withdrawVault(uint256 amount) external;
 
-    /// @notice Đặt địa chỉ nhận phí phạt khi user rút trước hạn.
-    /// @param receiver Địa chỉ mới nhận phí phạt.
+    /// @notice Sets the address that receives early-withdrawal penalties.
+    /// @param receiver New address to receive penalties.
     function setFeeReceiver(address receiver) external;
 
-    /// @notice Tạm dừng khẩn cấp — chặn mọi withdraw/renew.
+    /// @notice Emergency pause — blocks all withdrawals and renewals.
     function pause() external;
 
-    /// @notice Bật lại hoạt động sau khi pause.
+    /// @notice Resumes operations after a pause.
     function unpause() external;
 
     /// @notice SavingCore calls this to request interest payout from the vault.
@@ -27,8 +27,8 @@ interface IVaultManager {
     /// @param amount Amount of USDC to transfer.
     function payInterest(address to, uint256 amount) external;
 
-    /// @notice Trả về số dư hiện tại của vault.
-    /// @return Số USDC đang giữ trong vault.
+    /// @notice Returns the current vault balance.
+    /// @return Amount of USDC held in the vault.
     function vaultBalance() external view returns (uint256);
 
     /// @notice Returns the feeReceiver address (for early withdrawal penalty routing).

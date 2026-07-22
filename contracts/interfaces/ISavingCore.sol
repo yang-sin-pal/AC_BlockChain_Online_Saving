@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 /// @title ISavingCore
-/// @notice Interface cho hệ thống gửi tiết kiệm có kỳ hạn (term deposit) trên blockchain.
-/// @dev Mỗi deposit là 1 ERC721 NFT. APR và penalty được snapshot tại thời điểm mở deposit.
+/// @notice Interface for the blockchain-based term deposit saving system.
+/// @dev Each deposit is an ERC721 NFT. APR and penalty are snapshotted at deposit open time.
 interface ISavingCore {
     enum Status {
         Active,
@@ -13,19 +13,19 @@ interface ISavingCore {
     }
 
     struct Plan {
-        uint256 tenorDays;              // kỳ hạn (số ngày)
-        uint256 aprBps;                 // lãi suất năm, đơn vị basis points (100 = 1%)
-        uint256 minDeposit;             // số tiền gửi tối thiểu, 0 = không giới hạn
-        uint256 maxDeposit;             // số tiền gửi tối đa, 0 = không giới hạn
-        uint256 earlyWithdrawPenaltyBps;// phạt khi rút trước hạn, đơn vị bps
-        bool enabled;                   // admin có thể tắt plan để ngừng nhận deposit mới
+        uint256 tenorDays;              // Term length in days
+        uint256 aprBps;                 // Annual interest rate in basis points (100 = 1%)
+        uint256 minDeposit;             // Minimum deposit amount, 0 = no limit
+        uint256 maxDeposit;             // Maximum deposit amount, 0 = no limit
+        uint256 earlyWithdrawPenaltyBps; // Early withdrawal penalty in basis points
+        bool enabled;                   // Admin can disable plan to block new deposits
     }
 
     struct Deposit {
         uint256 planId;
         uint256 principal;
-        uint256 aprBpsAtOpen;           // APR snapshot tại thời điểm mở
-        uint256 penaltyBpsAtOpen;       // penalty snapshot tại thời điểm mở
+        uint256 aprBpsAtOpen;           // APR snapshot at deposit open time
+        uint256 penaltyBpsAtOpen;       // Penalty snapshot at deposit open time
         uint256 startAt;
         uint256 maturityAt;
         Status status;
@@ -33,13 +33,13 @@ interface ISavingCore {
 
     // ---------- Admin functions ----------
 
-    /// @notice Tạo 1 saving plan mới.
-    /// @param tenorDays Kỳ hạn của plan (số ngày).
-    /// @param aprBps Lãi suất năm, đơn vị basis points (100 = 1%).
-    /// @param minDeposit Số tiền gửi tối thiểu. 0 = không giới hạn.
-    /// @param maxDeposit Số tiền gửi tối đa. 0 = không giới hạn.
-    /// @param earlyWithdrawPenaltyBps Phạt khi rút trước hạn, đơn vị bps.
-    /// @return planId ID của plan vừa tạo.
+    /// @notice Creates a new saving plan.
+    /// @param tenorDays Term length of the plan in days.
+    /// @param aprBps Annual interest rate in basis points (100 = 1%).
+    /// @param minDeposit Minimum deposit amount. 0 = no limit.
+    /// @param maxDeposit Maximum deposit amount. 0 = no limit.
+    /// @param earlyWithdrawPenaltyBps Early withdrawal penalty in basis points.
+    /// @return planId ID of the newly created plan.
     function createPlan(
         uint256 tenorDays,
         uint256 aprBps,
@@ -48,44 +48,44 @@ interface ISavingCore {
         uint256 earlyWithdrawPenaltyBps
     ) external returns (uint256 planId);
 
-    /// @notice Cập nhật APR của 1 plan. Không ảnh hưởng đến deposit đã mở trước đó.
-    /// @param planId ID của plan cần cập nhật.
-    /// @param newAprBps APR mới (basis points).
+    /// @notice Updates the APR of a plan. Does not affect previously opened deposits.
+    /// @param planId ID of the plan to update.
+    /// @param newAprBps New APR in basis points.
     function updatePlan(uint256 planId, uint256 newAprBps) external;
 
-    /// @notice Bật 1 plan để cho phép mở deposit mới.
-    /// @param planId ID của plan cần bật.
+    /// @notice Enables a plan to allow new deposits.
+    /// @param planId ID of the plan to enable.
     function enablePlan(uint256 planId) external;
 
-    /// @notice Tắt 1 plan để chặn mở deposit mới. Không ảnh hưởng deposit đã có.
-    /// @param planId ID của plan cần tắt.
+    /// @notice Disables a plan to block new deposits. Does not affect existing deposits.
+    /// @param planId ID of the plan to disable.
     function disablePlan(uint256 planId) external;
 
     // ---------- User functions ----------
 
-    /// @notice Mở 1 deposit mới. User phải approve() token cho contract trước khi gọi.
-    /// @param planId ID của plan muốn gửi.
-    /// @param amount Số tiền gửi (phải nằm trong minDeposit..maxDeposit).
-    /// @return depositId ID của deposit vừa tạo.
+    /// @notice Opens a new deposit. User must approve() tokens to the contract before calling.
+    /// @param planId ID of the plan to deposit into.
+    /// @param amount Deposit amount (must be within minDeposit..maxDeposit).
+    /// @return depositId ID of the newly created deposit.
     function openDeposit(uint256 planId, uint256 amount) external returns (uint256 depositId);
 
-    /// @notice Rút gốc + lãi khi đã đến hoặc quá kỳ hạn.
-    /// @param depositId ID của deposit cần rút.
+    /// @notice Withdraws principal + interest at or after maturity.
+    /// @param depositId ID of the deposit to withdraw.
     function withdrawAtMaturity(uint256 depositId) external;
 
-    /// @notice Rút trước hạn — không nhận lãi, bị trừ phạt trên gốc.
-    /// @param depositId ID của deposit cần rút sớm.
+    /// @notice Early withdrawal — no interest, penalty deducted from principal.
+    /// @param depositId ID of the deposit to withdraw early.
     function earlyWithdraw(uint256 depositId) external;
 
-    /// @notice Gia hạn thủ công sang 1 plan mới sau khi đáo hạn.
-    /// @param depositId ID của deposit cũ.
-    /// @param newPlanId ID của plan mới muốn chuyển sang.
-    /// @return newDepositId ID của deposit vừa tạo.
+    /// @notice Manual renewal to a new plan after maturity.
+    /// @param depositId ID of the old deposit.
+    /// @param newPlanId ID of the new plan to switch to.
+    /// @return newDepositId ID of the newly created deposit.
     function renewDeposit(uint256 depositId, uint256 newPlanId) external returns (uint256 newDepositId);
 
-    /// @notice Bot (hoặc bất kỳ ai) gọi để tự động gia hạn sau grace period, giữ nguyên APR gốc.
-    /// @param depositId ID của deposit cần tự động gia hạn.
-    /// @return newDepositId ID của deposit vừa tạo.
+    /// @notice Bot (or anyone) calls this to auto-renew after the grace period, preserving the original APR.
+    /// @param depositId ID of the deposit to auto-renew.
+    /// @return newDepositId ID of the newly created deposit.
     function autoRenewDeposit(uint256 depositId) external returns (uint256 newDepositId);
 
     // ---------- Events ----------
