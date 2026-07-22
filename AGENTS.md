@@ -1,25 +1,30 @@
 # AGENTS.md
 
-## Project Overview
-
-Blockchain-based online saving system (term deposit) on Ethereum. University project (CSE410). Deadline: **July 29, 2026**.
-
-Three contracts: `MockUSDC` (ERC20, 6 decimals), `SavingCore` (business logic, ERC721 certificates), `VaultManager` (holds funds, pays interest).
-
 ## Commands
 
 ```bash
 npm install              # Install dependencies
-npx hardhat compile      # Compile contracts (Solidity 0.8.28)
+npx hardhat compile      # Compile contracts (Solidity 0.8.28, cancun EVM)
 npx hardhat test         # Run all tests
 npx hardhat coverage     # Run coverage report
 ```
 
-**No lint, typecheck, or formatter configured.** The `npm test` script is a placeholder (`echo "Error: no test specified"`). Always use `npx hardhat test` directly.
+**`npm test` is a placeholder** (`echo "Error: no test specified"`). Always use `npx hardhat test` directly. No lint, typecheck, or formatter is configured.
 
 ## Project Status
 
-**Early stage** — most core files are empty stubs. Interfaces (`ISavingCore.sol`, `IVaultManager.sol`) and `MockUSDC.sol` are complete. `SavingCore.sol` and `VaultManager.sol` are empty. All test files are empty placeholders. See `PLAN.md` for the day-by-day development plan.
+**Early stage** — Day 1 of 10 complete. See `PLAN.md` for day-by-day progress.
+
+| Component | Status |
+|-----------|--------|
+| `ISavingCore.sol`, `IVaultManager.sol` | Complete — NatSpec done |
+| `MockUSDC.sol` | Complete — ERC20, 6 decimals, public `mint()` |
+| `SavingCore.sol` | Plan management implemented. `openDeposit`, `withdraw`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit` are stubs (`revert("TODO")`) |
+| `VaultManager.sol` | **Empty file** |
+| `Errors.sol`, `Events.sol`, `InterestLib.sol` | Comment-only placeholders — no actual code |
+| `test/helpers/*.ts` | Placeholder comments only — no real helpers yet |
+| All test files | Empty |
+| `scripts/*.ts` | Stub comments only |
 
 ## Architecture
 
@@ -27,9 +32,11 @@ npx hardhat coverage     # Run coverage report
 User → approve(MockUSDC) → SavingCore.transferFrom() → SavingCore → VaultManager.transfer()
 ```
 
-- **SavingCore** owns all business logic, mints ERC721 certificates per deposit
-- **VaultManager** is a separate vault that holds USDC, pays interest, supports pause/unpause
-- APR and penalty are **snapshot at deposit open time** (BR-04) — plan changes don't affect existing deposits
+- **SavingCore** holds user principal, owns all business logic, mints ERC721 certificates per deposit
+- **VaultManager** holds bank's interest pool (funded by admin), pays interest on SavingCore's request
+- Fund separation is the core architectural rule — mixing principal and interest pools is a design error
+
+Full architecture: `docs/design/system-architecture.md`
 
 ## Personal Variant (Student ID ending in 38)
 
@@ -42,46 +49,47 @@ User → approve(MockUSDC) → SavingCore.transferFrom() → SavingCore → Vaul
 
 ## Key Conventions
 
-- **Solidity 0.8.28** with `hardhat-toolbox` (TypeScript)
-- **Custom errors** over `require(..., "string")` — gas cheaper, defined in `Errors.sol`
-- **NatSpec comments** required on all functions (per `PLAN.md` and existing interfaces)
-- **Events** go in `Events.sol` library (optional consolidation)
-- **InterestLib** — placeholder for interest/penalty formulas when they grow complex
+- **Solidity 0.8.28**, `hardhat-toolbox` (TypeScript), EVM target `cancun`
+- **Custom errors** only — no `require(cond, "string")`. Define all in `Errors.sol`, named `ContractName_Reason` (e.g. `error SavingCore_PlanNotEnabled()`)
+- **Events** in past tense (`DepositOpened`, not `OpenDeposit`), defined in `Events.sol`
+- **NatSpec** required on all public/external functions (`@notice`, `@param`, `@return`). Comment the *reason*, not the variable name
+- **`nonReentrant`** outermost modifier (before `onlyOwner`, custom checks)
+- **Checks-Effects-Interactions** — update state before `transfer`/`transferFrom`
+- **SafeERC20** — always use `safeTransfer`/`safeTransferFrom`, never raw `IERC20.transfer`
+- **Interest formulas** in `InterestLib.sol` (`pure` functions), not inline in SavingCore. **Multiply before divide** to avoid rounding to zero
+- **Boundary at `maturityAt`**: use `>=` consistently (Design Q5)
+- **APR/penalty snapshot** at deposit open time — never re-read plan values after deposit is opened
+
+Full conventions: `docs/project/code-convention.md`
 
 ## Test Structure
 
 ```
 test/
-├── core/              # Unit tests: SavingCore.test.ts, VaultManager.test.ts
-├── intergration/      # Integration tests (note: typo is intentional per PLAN.md)
-│   ├── OpenDeposit.test.ts
-│   ├── Withdraw.test.ts
-│   ├── Renew.test.ts
-│   └── FullFlow.test.ts
+├── core/              # Unit tests (SavingCore.test.ts, VaultManager.test.ts)
+├── intergration/      # Integration tests 
 ├── mocks/             # MockUSDC.test.ts
-└── helpers/
-    ├── fixtures.ts    # Shared deployAllContracts() setup
-    ├── constants.ts   # APR, TENOR, MIN_DEPOSIT, etc.
-    └── utils.ts       # toUSDC(), increaseTime(), expectRevert()
+└── helpers/           # fixtures.ts, constants.ts, utils.ts (all stubs currently)
 ```
 
-**All test files are currently empty.** Helpers have placeholder comments describing intended API.
+**Test standard**: `docs/project/test-standard.md` — every function needs boundary cases proven (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
 
-## Critical Implementation Notes
-
-- Interest formula: simple interest, **multiply before divide** (to avoid rounding to zero)
-- Boundary at `maturityAt`: use `>=` consistently (Design Q5)
-- Auto-renew locks APR from original deposit (`aprBpsAtOpen`), not current plan
-- Bonus C1 (Principal Protection): if vault insufficient, pay principal immediately, record debt in `pendingInterest[depositId]`
-- Bonus C2 (Solvency Guard): `withdrawVault()` must revert if it would break interest obligations
+**Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17), each with implementation and verification strategy.
 
 ## Docs
 
-All in `docs/`: `architecture.md`, `business-rules.md` (17 rules BR-01 to BR-17, each with assignment source), `contract-api.md`, `access-control.md`, `audit-notes.md`, `folder-structure.md`, `sequence-diagram.md`, `storage-layout.md`.
+```
+docs/
+├── audit/            # audit-notes.md, folder-structure.md
+├── design/           # business-rules.md, contract-api.md, access-control.md, system-architecture.md, storage-layout.md
+├── diagrams/         # sequence-diagram.md, activity-diagram.md, usecase-diagram.md
+├── project/          # assignment.md, code-convention.md, test-standard.md
+└── reports/          # Day1-Report.md
+```
 
 ## Gotchas
 
-- `test/intergration/` directory name has a typo (missing 'a') — do not rename, tests may reference this path
-- `package.json` has no useful `test` script — always use `npx hardhat test`
-- No `.env` file committed; Hardhat config has no network config (local only)
+- `package.json` test script is a placeholder — use `npx hardhat test`
+- No `.env` committed, no network config — Hardhat local chain only
 - `typechain-types/` is gitignored — regenerate with `npx hardhat compile`
+- OZ v5: `Ownable2Step` constructor requires `Ownable(msg.sender)`, not `Ownable()`
