@@ -6,16 +6,16 @@ This document describes the activity diagrams for the **Blockchain-Based Online 
 
 ## System Parameters (Personal Variant — ID ending in 38)
 
-| Parameter | Value |
-|-----------|-------|
-| Grace Period | 4 days |
-| Default APR | 400 bps (4.00%) |
-| Early Withdrawal Penalty | 450 bps (4.50%) |
-| Default Tenor | 180 days |
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| Grace Period | 4 days | §8.1 |
+| Default APR | 400 bps (4.00%) | §8.1 |
+| Early Withdrawal Penalty | 450 bps (4.50%) | §8.1 |
+| Default Tenor | 180 days | §8.1 |
 
 ---
 
-## 1. Open Deposit Flow
+## 1. Open Deposit Flow — §3.1
 
 ```mermaid
 flowchart TD
@@ -58,7 +58,7 @@ flowchart TD
 
 ---
 
-## 2. Withdraw at Maturity Flow
+## 2. Withdraw at Maturity Flow — §3.2
 
 ```mermaid
 flowchart TD
@@ -99,7 +99,7 @@ flowchart TD
 
 ---
 
-## 3. Early Withdraw Flow
+## 3. Early Withdraw Flow — §3.3
 
 ```mermaid
 flowchart TD
@@ -139,7 +139,7 @@ flowchart TD
 
 ---
 
-## 4. Manual Renew Flow
+## 4. Manual Renew Flow — §3.4
 
 ```mermaid
 flowchart TD
@@ -176,7 +176,7 @@ flowchart TD
 
 ---
 
-## 5. Auto-Renew Flow
+## 5. Auto-Renew Flow — §3.5
 
 ```mermaid
 flowchart TD
@@ -210,7 +210,7 @@ flowchart TD
 
 ---
 
-## 6. Admin — Plan Management
+## 6. Admin — Plan Management — §4
 
 ```mermaid
 flowchart TD
@@ -247,7 +247,7 @@ flowchart TD
 
 ---
 
-## 7. Admin — Vault & System Management
+## 7. Admin — Vault & System Management — §4
 
 ```mermaid
 flowchart TD
@@ -294,7 +294,7 @@ flowchart TD
 
 ## Bonus Challenges
 
-### C1: Principal Protection (Vault Empty)
+### C1: Principal Protection (Vault Empty) — §8.3 C1
 
 Extends Diagram 2 (Withdraw at Maturity). When the vault cannot pay full interest:
 
@@ -334,7 +334,7 @@ flowchart TD
 
 ---
 
-### C2: Solvency Guard (Vault Withdraw Check)
+### C2: Solvency Guard (Vault Withdraw Check) — §8.3 C2
 
 Extends Diagram 7 (Admin — Withdraw Vault):
 
@@ -360,7 +360,7 @@ flowchart TD
 
 ---
 
-### C3: Partial Early Withdraw
+### C3: Partial Early Withdraw — §8.3 C3
 
 Extends Diagram 3 (Early Withdraw):
 
@@ -397,7 +397,7 @@ flowchart TD
 
 ---
 
-### C4: Top-up Deposit
+### C4: Top-up Deposit — §8.3 C4
 
 ```mermaid
 flowchart TD
@@ -435,16 +435,16 @@ flowchart TD
 
 ## Flow Summary Table
 
-| # | Flow | Actor | Key Decision Points |
-|---|------|-------|---------------------|
-| 1 | Open Deposit | User | Plan enabled, min/max bounds |
-| 2 | Withdraw at Maturity | User | Paused, active, mature, vault funded |
-| 3 | Early Withdraw | User | Paused, active, before maturity |
-| 4 | Manual Renew | User | Paused, active, at/past maturity |
-| 5 | Auto-Renew | Bot | Active, grace period expired |
-| 6 | Plan Management | Admin | Plan exists, valid inputs |
-| 7 | Vault & System | Admin | Balance check, pause state |
-| C1 | Principal Protection | User | Vault insufficient -> pay principal only |
-| C2 | Solvency Guard | Admin | Withdraw would break obligations |
-| C3 | Partial Early Withdraw | User | Amount within principal, partial penalty |
-| C4 | Top-up Deposit | User | Active, not yet mature |
+| # | Flow | Actor | Key Decision Points | Source |
+|---|------|-------|---------------------|--------|
+| 1 | Open Deposit | User | Plan enabled, min/max bounds | §3.1 |
+| 2 | Withdraw at Maturity | User | Paused, active, mature, vault funded | §3.2 |
+| 3 | Early Withdraw | User | Paused, active, before maturity | §3.3 |
+| 4 | Manual Renew | User | Paused, active, at/past maturity | §3.4 |
+| 5 | Auto-Renew | Bot | Active, grace period expired | §3.5 |
+| 6 | Plan Management | Admin | Plan exists, valid inputs | §4 |
+| 7 | Vault & System | Admin | Balance check, pause state | §4 |
+| C1 | Principal Protection | User | Vault insufficient -> pay principal only | §8.3 C1 |
+| C2 | Solvency Guard | Admin | Withdraw would break obligations | §8.3 C2 |
+| C3 | Partial Early Withdraw | User | Amount within principal, partial penalty | §8.3 C3 |
+| C4 | Top-up Deposit | User | Active, not yet mature | §8.3 C4 |

@@ -8,11 +8,11 @@ This document describes the use case diagram for the **Blockchain-Based Online S
 
 ## Actors
 
-| Actor | Type | Description |
-|-------|------|-------------|
-| **Depositor** | Primary | User who opens deposits, withdraws funds, and renews terms |
-| **Bank Admin** | Primary | Manages saving plans, vault funding, fee receiver, and system pause state |
-| **Bot (off-chain)** | Secondary | External service that triggers auto-renew after the grace period expires |
+| Actor | Type | Description | Source |
+|-------|------|-------------|--------|
+| **Depositor** | Primary | User who opens deposits, withdraws funds, and renews terms | §1 |
+| **Bank Admin** | Primary | Manages saving plans, vault funding, fee receiver, and system pause state | §1 |
+| **Bot (off-chain)** | Secondary | External service that triggers auto-renew after the grace period expires | §3.5 |
 
 ---
 
@@ -92,50 +92,50 @@ flowchart LR
 
 ### Core Use Cases (SavingCore)
 
-| # | Use Case | Actor | Description |
-|---|----------|-------|-------------|
-| 1 | **Approve Token Spending** | Depositor | User approves the SavingCore contract to spend MockUSDC tokens |
-| 2 | **Open Deposit** | Depositor | Select a plan, deposit principal; mints an ERC721 NFT certificate; APR and penalty are snapshotted |
-| 3 | **Withdraw at Maturity** | Depositor | Withdraw principal + interest after `maturityAt`; interest paid from VaultManager |
-| 4 | **Early Withdraw** | Depositor | Withdraw before maturity with penalty deducted; zero interest paid; penalty sent to feeReceiver |
-| 5 | **Manual Renew** | Depositor | At or after maturity, compound interest into new principal and open a new deposit on a selected plan |
-| 6 | **Auto-Renew** | Bot | After grace period (default: 4 days), bot triggers auto-renew; original APR is locked, same tenor |
-| 7 | **Create Plan** | Bank Admin | Create a new saving plan with tenor, APR, min/max deposit, and penalty |
-| 8 | **Update Plan APR** | Bank Admin | Change APR for a plan; only affects future deposits, never existing ones |
-| 9 | **Enable Plan** | Bank Admin | Allow users to open deposits for this plan |
-| 10 | **Disable Plan** | Bank Admin | Stop new deposits for this plan; existing deposits remain active |
-| 11 | **Pause** | Bank Admin | Emergency stop; blocks all withdrawals and renewals |
-| 12 | **Unpause** | Bank Admin | Resume normal operations after pause |
-| 13 | **Transfer NFT Certificate** | Depositor | Transfer the ERC721 deposit certificate to another address |
-| 14 | **View Available Plans** | Depositor | Read list of enabled/disabled plans with their parameters |
-| 15 | **View Active Deposits** | Depositor | Read status and details of owned deposit NFTs |
+| # | Use Case | Actor | Description | Source |
+|---|----------|-------|-------------|--------|
+| 1 | **Approve Token Spending** | Depositor | User approves the SavingCore contract to spend MockUSDC tokens | §3.1 step 1 |
+| 2 | **Open Deposit** | Depositor | Select a plan, deposit principal; mints an ERC721 NFT certificate; APR and penalty are snapshotted | §3.1 |
+| 3 | **Withdraw at Maturity** | Depositor | Withdraw principal + interest after `maturityAt`; interest paid from VaultManager | §3.2 |
+| 4 | **Early Withdraw** | Depositor | Withdraw before maturity with penalty deducted; zero interest paid; penalty sent to feeReceiver | §3.3 |
+| 5 | **Manual Renew** | Depositor | At or after maturity, compound interest into new principal and open a new deposit on a selected plan | §3.4 |
+| 6 | **Auto-Renew** | Bot | After grace period (default: 4 days), bot triggers auto-renew; original APR is locked, same tenor | §3.5 |
+| 7 | **Create Plan** | Bank Admin | Create a new saving plan with tenor, APR, min/max deposit, and penalty | §4 |
+| 8 | **Update Plan APR** | Bank Admin | Change APR for a plan; only affects future deposits, never existing ones | §4 |
+| 9 | **Enable Plan** | Bank Admin | Allow users to open deposits for this plan | §4 |
+| 10 | **Disable Plan** | Bank Admin | Stop new deposits for this plan; existing deposits remain active | §4 |
+| 11 | **Pause** | Bank Admin | Emergency stop; blocks all withdrawals and renewals | §4 |
+| 12 | **Unpause** | Bank Admin | Resume normal operations after pause | §4 |
+| 13 | **Transfer NFT Certificate** | Depositor | Transfer the ERC721 deposit certificate to another address | §2.2, §8.2 Q1 (inferred) |
+| 14 | **View Available Plans** | Depositor | Read list of enabled/disabled plans with their parameters | §7.3 |
+| 15 | **View Active Deposits** | Depositor | Read status and details of owned deposit NFTs | §7.3 |
 
 ### Vault Use Cases (VaultManager)
 
-| # | Use Case | Actor | Description |
-|---|----------|-------|-------------|
-| 16 | **Fund Vault** | Bank Admin | Deposit MockUSDC into the vault to cover interest payments |
-| 17 | **Withdraw from Vault** | Bank Admin | Remove tokens from the vault (within safe limits) |
-| 18 | **Set Fee Receiver** | Bank Admin | Set the address that receives early-withdrawal penalties |
+| # | Use Case | Actor | Description | Source |
+|---|----------|-------|-------------|--------|
+| 16 | **Fund Vault** | Bank Admin | Deposit MockUSDC into the vault to cover interest payments | §4 |
+| 17 | **Withdraw from Vault** | Bank Admin | Remove tokens from the vault (within safe limits) | §4 |
+| 18 | **Set Fee Receiver** | Bank Admin | Set the address that receives early-withdrawal penalties | §4 |
 
 ### MockUSDC Use Cases
 
-| # | Use Case | Actor | Description |
-|---|----------|-------|-------------|
-| 19 | **Mint Tokens** | Depositor | Mint test MockUSDC tokens for testing |
-| 20 | **Transfer Tokens** | Depositor | Transfer MockUSDC to another address |
+| # | Use Case | Actor | Description | Source |
+|---|----------|-------|-------------|--------|
+| 19 | **Mint Tokens** | Depositor | Mint test MockUSDC tokens for testing | §1.1 |
+| 20 | **Transfer Tokens** | Depositor | Transfer MockUSDC to another address | (inferred) |
 
 ---
 
 ## Bonus Challenges (Section 8.3)
 
-| Bonus | Use Case | Actor | Description |
-|-------|----------|-------|-------------|
-| **C1** | Principal Protection | — | Pay principal immediately at maturity even if vault is empty; record interest as pending debt |
-| **C2** | Sololvency Guard Check | Bank Admin | Block `Withdraw from Vault` if it would break interest obligations to active deposits |
-| **C3** | Partial Early Withdraw | Depositor | Withdraw a portion of principal early; penalty applies only to withdrawn amount |
-| **C4** | Top-up Deposit | Depositor | Add more principal to an active deposit; interest calculated fairly for the new amount |
-| **C5** | Custom Idea | — | Identify a gap in the spec and propose a fix |
+| Bonus | Use Case | Actor | Description | Source |
+|-------|----------|-------|-------------|--------|
+| **C1** | Principal Protection | — | Pay principal immediately at maturity even if vault is empty; record interest as pending debt | §8.3 C1 |
+| **C2** | Solvency Guard Check | Bank Admin | Block `Withdraw from Vault` if it would break interest obligations to active deposits | §8.3 C2 |
+| **C3** | Partial Early Withdraw | Depositor | Withdraw a portion of principal early; penalty applies only to withdrawn amount | §8.3 C3 |
+| **C4** | Top-up Deposit | Depositor | Add more principal to an active deposit; interest calculated fairly for the new amount | §8.3 C4 |
+| **C5** | Custom Idea | — | Identify a gap in the spec and propose a fix | §8.3 C5 |
 
 ---
 
@@ -152,14 +152,14 @@ flowchart LR
     UC_TopUp -->|<<include>> Bonus C4| UC_Approve
 ```
 
-| Relationship | Type | Explanation |
-|--------------|------|-------------|
-| Open Deposit → Approve Token Spending | `<<include>>` | Every deposit requires token approval first |
-| Early Withdraw → Withdraw at Maturity | `<<extend>>` | Early withdrawal is an optional variant of the withdrawal flow |
-| Partial Early Withdraw → Early Withdraw | `<<extend>>` (C3) | Bonus: partial withdrawal extends the early-withdraw concept |
-| Auto-Renew → Withdraw at Maturity | triggers | Bot-initiated maturity payout feeds into the renewal flow |
-| Solvency Guard → Withdraw from Vault | `<<extend>>` (C2) | Bonus: admin vault withdrawal is checked against owed interest |
-| Top-up Deposit → Approve Token Spending | `<<include>>` (C4) | Bonus: adding principal requires token approval |
+| Relationship | Type | Explanation | Source |
+|--------------|------|-------------|--------|
+| Open Deposit → Approve Token Spending | `<<include>>` | Every deposit requires token approval first | §3.1 step 1 |
+| Early Withdraw → Withdraw at Maturity | `<<extend>>` | Early withdrawal is an optional variant of the withdrawal flow | §3.2, §3.3 |
+| Partial Early Withdraw → Early Withdraw | `<<extend>>` (C3) | Bonus: partial withdrawal extends the early-withdraw concept | §8.3 C3 |
+| Auto-Renew → Withdraw at Maturity | triggers | Bot-initiated maturity payout feeds into the renewal flow | §3.5 |
+| Solvency Guard → Withdraw from Vault | `<<extend>>` (C2) | Bonus: admin vault withdrawal is checked against owed interest | §8.3 C2 |
+| Top-up Deposit → Approve Token Spending | `<<include>>` (C4) | Bonus: adding principal requires token approval | §8.3 C4 |
 
 ---
 
