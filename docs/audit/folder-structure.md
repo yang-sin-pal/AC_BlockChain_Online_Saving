@@ -18,18 +18,15 @@ AC_BlockChain_Online_Saving/
 │   ├── mocks/
 │   │   └── MockUSDC.sol
 │   │
-│   ├── libraries/
-│   │   ├── InterestLib.sol          (optional)
-│   │   ├── Errors.sol               (optional)
-│   │   └── Events.sol               (optional)
-│   │
-│   └── utils/
-│       └── TimeHelper.sol           (optional)
+│   └── libraries/
+│       ├── InterestLib.sol
+│       ├── Errors.sol
+│       └── Events.sol
 │
 ├── scripts/
-│   ├── deploy.ts                    (later)
-│   ├── createPlan.ts                (later)
-│   └── seed.ts                      (later)
+│   ├── deploy.ts
+│   ├── createPlan.ts
+│   └── seed.ts
 │
 ├── test/
 │   │
@@ -43,17 +40,34 @@ AC_BlockChain_Online_Saving/
 │   │   ├── Renew.test.ts
 │   │   └── FullFlow.test.ts
 │   │
+│   ├── mocks/
+│   │   └── MockUSDC.test.ts
+│   │
 │   └── helpers/
 │       ├── fixtures.ts
-│       ├── constants.ts             (optional)
-│       └── utils.ts                 (optional)
+│       ├── constants.ts
+│       └── utils.ts
 │
 ├── docs/
-│   ├── architecture.md
-│   ├── folder-structure.md
-│   ├── sequence-diagram.md
-│   ├── contract-api.md
-│   └── audit-notes.md
+│   ├── project/
+│   │   ├── assignment.md
+│   │   ├── code-convention.md
+│   │   └── test-standard.md
+│   ├── design/
+│   │   ├── system-architecture.md
+│   │   ├── business-rules.md
+│   │   ├── contract-api.md
+│   │   ├── access-control.md
+│   │   └── storage-layout.md
+│   ├── diagrams/
+│   │   ├── activity-diagram.md
+│   │   ├── sequence-diagram.md
+│   │   └── usecase-diagram.md
+│   ├── audit/
+│   │   ├── audit-notes.md
+│   │   └── folder-structure.md
+│   └── Reports/
+│       └── Day1-Report.md
 │
 ├── ignition/
 │
@@ -102,11 +116,7 @@ Reusable libraries.
 
 - `InterestLib.sol` – Interest calculation.
 - `Errors.sol` – Custom errors.
-- `Events.sol` – Shared events (optional).
-
-### utils/
-
-Utility contracts if reusable helper logic is needed.
+- `Events.sol` – Shared events.
 
 ---
 
@@ -132,6 +142,10 @@ Tests for individual contracts.
 
 End-to-end workflow tests.
 
+### mocks/
+
+Tests for mock contracts.
+
 ### helpers/
 
 Shared utilities for tests.
@@ -144,12 +158,44 @@ Shared utilities for tests.
 
 ## docs/
 
-Project documentation.
+Project documentation organized into subfolders.
 
-- `architecture.md` – System architecture.
-- `folder-structure.md` – Project directory guide.
-- `api.md` – Contract APIs.
+### project/
+
+Admin and assignment info.
+
+- `assignment.md` – Project requirements.
+- `code-convention.md` – Code style conventions.
+- `test-standard.md` – Testing standards.
+
+### design/
+
+Technical specifications.
+
+- `system-architecture.md` – System architecture.
+- `business-rules.md` – Business rules.
+- `contract-api.md` – Contract APIs.
+- `access-control.md` – Access control matrix.
+- `storage-layout.md` – Storage layout.
+
+### diagrams/
+
+UML and visual diagrams.
+
+- `activity-diagram.md` – Activity diagram.
+- `sequence-diagram.md` – Sequence diagram.
+- `usecase-diagram.md` – Use case diagram.
+
+### audit/
+
+Audit and review notes.
+
 - `audit-notes.md` – Security notes and findings.
+- `folder-structure.md` – Project directory guide.
+
+### Reports/
+
+Daily progress reports.
 
 ---
 
@@ -158,5 +204,5 @@ Project documentation.
 - Separate business logic from interfaces.
 - Keep contracts modular and reusable.
 - Share test utilities through `helpers/`.
-- Write interfaces before implementations.
-- Keep documentation synchronized with code.
+- Write interfaces and tests before implementations.
+- Keep code follow documentation.
