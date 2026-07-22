@@ -77,7 +77,7 @@ test/
 
 ## Docs
 
-All in `docs/`: `architecture.md`, `business-rules.md` (12 rules BR-01 to BR-12), `contract-api.md`, `access-control.md`, `audit-notes.md`, `folder-structure.md`, `sequence-diagram.md`, `storage-layout.md`.
+All in `docs/`: `architecture.md`, `business-rules.md` (17 rules BR-01 to BR-17, each with assignment source), `contract-api.md`, `access-control.md`, `audit-notes.md`, `folder-structure.md`, `sequence-diagram.md`, `storage-layout.md`.
 
 ## Gotchas
 
