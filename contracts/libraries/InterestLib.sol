@@ -1,4 +1,4 @@
-﻿// Nếu sau này công thức tính lãi dài:
+// Nếu sau này công thức tính lãi dài:
 
 // principal
 // APR

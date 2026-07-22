@@ -1,4 +1,4 @@
-﻿// Errors.sol
+// Errors.sol
 // Thay vì require(x, "Deposit too small");
 // sẽ dùng error DepositTooSmall();
 //====> GAS RẺ HƠN.

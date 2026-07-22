@@ -1,4 +1,4 @@
-﻿// Events.sol
+// Events.sol
 
 // Có thể gom toàn bộ event.
 

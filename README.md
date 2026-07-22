@@ -17,7 +17,7 @@ Blockchain Programming Final Assignment
 9. [Security Notes](#9-security-notes)
 10. [Bonus Features](#10-bonus-features)
 
-Quick check: [Development Status](#development-status)
+Quick check: See PLAN.md
 
 ---
 
@@ -173,21 +173,5 @@ _To be implemented._
 
 _To be implemented._
 
----
 
-## Development Status
 
-### Day 1
-
-- [x] Hardhat project setup
-- [x] TypeScript configuration
-- [x] Project folder structure
-- [x] Documentation structure
-- [ ] MockUSDC
-- [ ] Interfaces
-- [ ] SavingCore skeleton
-- [ ] VaultManager skeleton
-
-### Day 2+
-
-Implementation in progress.
