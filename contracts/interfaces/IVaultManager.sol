@@ -22,11 +22,21 @@ interface IVaultManager {
     /// @notice Bật lại hoạt động sau khi pause.
     function unpause() external;
 
+    /// @notice SavingCore calls this to request interest payout from the vault.
+    /// @param to Address to receive tokens (user on withdraw, SavingCore on renew).
+    /// @param amount Amount of USDC to transfer.
+    function payInterest(address to, uint256 amount) external;
+
     /// @notice Trả về số dư hiện tại của vault.
     /// @return Số USDC đang giữ trong vault.
     function vaultBalance() external view returns (uint256);
 
+    /// @notice Returns the feeReceiver address (for early withdrawal penalty routing).
+    /// @return The address currently set to receive penalties.
+    function feeReceiver() external view returns (address);
+
     event VaultFunded(address indexed from, uint256 amount);
     event VaultWithdrawn(address indexed to, uint256 amount);
     event FeeReceiverUpdated(address indexed newReceiver);
+    event InterestPaid(address indexed to, uint256 amount);
 }
