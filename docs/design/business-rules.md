@@ -59,7 +59,7 @@ Every business rule should have at least one corresponding test case.
 |------|--------|
 | BR-01 | ☐ |
 | BR-02 | ☐ |
-| BR-03 | ☐ |
+| BR-03 | ☑ |
 | BR-04 | ☐ |
 | BR-05 | ☐ |
 | BR-06 | ☐ |
@@ -72,5 +72,5 @@ Every business rule should have at least one corresponding test case.
 | BR-13 | ☐ |
 | BR-14 | ☐ |
 | BR-15 | ☐ |
-| BR-16 | ☐ |
+| BR-16 | ☑ |
 | BR-17 | ☐ |

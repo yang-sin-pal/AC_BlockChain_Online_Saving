@@ -27,7 +27,7 @@
 |-----|--------|-------|
 | Day 1 (20/7) | **100% done** | All 6 tasks complete. Fixes: @openzeppelin install, import paths, OZ v5 ReentrancyGuard, evmVersion cancun, BOM stripped, NatSpec. Compile + test pass. |
 | Day 2 (21/7) | **Skipped** | VaultManager.sol empty, openDeposit stub, all tests empty |
-| Day 3 (22/7) | Current | Starting VaultManager + openDeposit |
+| Day 3 (22/7) | 50% done | VaultManager complete (19/19 tests). openDeposit not started. |
 
 **Schedule:** Today is 22/7 (Day 3). ~2 days behind. Day 1 blocker resolved — project compiles.
 
@@ -74,9 +74,9 @@
 | 🟢 GREEN | Implement `VaultManager.sol`: fundVault, withdrawVault, setFeeReceiver, pause/unpause | assignment §4 |
 | 🔵 REFACTOR | NatSpec on all public/external functions, verify all events emitted | assignment §10 |
 
-- [ ] **RED:** Write VaultManager tests first — define expected behavior from spec
-- [ ] **GREEN:** Implement VaultManager to pass those tests
-- [ ] **BLUE:** Add NatSpec, verify events, run `npx hardhat test`
+- [x] **RED:** Write VaultManager tests first — define expected behavior from spec
+- [x] **GREEN:** Implement VaultManager to pass those tests
+- [x] **BLUE:** Add NatSpec, verify events, run `npx hardhat test`
   > Ref: assignment §5 — Required events: PlanCreated, PlanUpdated, DepositOpened, Withdrawn, Renewed
 
 ### openDeposit (TDD order)
@@ -93,8 +93,8 @@
 
 ### End of Day 3 checklist
 
-- [ ] `npx hardhat compile` — no errors
-- [ ] `npx hardhat test` — all new tests pass
+- [x] `npx hardhat compile` — no errors
+- [x] `npx hardhat test` — all new tests pass
 - [ ] VaultManager + openDeposit: every branch has a dedicated test (test-standard.md §3)
 
 ---
