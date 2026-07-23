@@ -42,7 +42,7 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
 
     /// @notice Admin withdraws excess funds from the vault.
     /// @param amount Amount of USDC to withdraw from the vault.
-    function withdrawVault(uint256 amount) external onlyOwner whenNotPaused nonReentrant {
+    function withdrawVault(uint256 amount) external nonReentrant onlyOwner whenNotPaused {
         if (amount > usdc.balanceOf(address(this))) revert VaultManager_InsufficientBalance();
         usdc.safeTransfer(msg.sender, amount);
         emit VaultWithdrawn(msg.sender, amount);
@@ -68,7 +68,7 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     /// @notice SavingCore calls this to request interest payout from the vault.
     /// @param to Address to receive tokens.
     /// @param amount Amount of USDC to transfer.
-    function payInterest(address to, uint256 amount) external onlySavingCore nonReentrant {
+    function payInterest(address to, uint256 amount) external nonReentrant onlySavingCore {
         usdc.safeTransfer(to, amount);
         emit InterestPaid(to, amount);
     }
