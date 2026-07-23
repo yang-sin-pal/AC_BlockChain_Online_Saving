@@ -113,6 +113,7 @@ The Online Saving System is composed of three main smart contracts. The core pri
 |----------|-------------|--------|
 | `payInterest(address to, uint256 amount)` | Transfer interest from vault to recipient (user on withdraw, SavingCore on renew) | §3.2, §6 Rule 5 |
 | `feeReceiver() → address` | Return the feeReceiver address (for early withdrawal penalty routing) | §3.3, §4 |
+| `vaultBalance() → uint256` | Return current USDC held in the vault | §4, frontend display |
 
 ---
 
@@ -261,6 +262,12 @@ All contracts must emit these events for frontend/indexer integration:
 | `DepositOpened(depositId, owner, planId, principal, maturityAt, aprBpsAtOpen)` | SavingCore | User opens a deposit | §5 |
 | `Withdrawn(depositId, owner, principal, interest, isEarly)` | SavingCore | User withdraws | §5 |
 | `Renewed(oldDepositId, newDepositId, newPrincipal, newPlanId)` | SavingCore | Manual or auto renew | §5 |
+| `VaultFunded(from, amount)` | VaultManager | Admin deposits tokens into the vault | §4 |
+| `VaultWithdrawn(to, amount)` | VaultManager | Admin withdraws tokens from the vault | §4 |
+| `FeeReceiverUpdated(newReceiver)` | VaultManager | Admin sets a new fee receiver address | §4 |
+| `InterestPaid(to, amount)` | VaultManager | SavingCore requests interest payout | §3.2, §6 Rule 5 |
+| `Paused(account)` | VaultManager | Admin pauses the system | §4, §6 Rule 6 |
+| `Unpaused(account)` | VaultManager | Admin unpauses the system | §4, §6 Rule 6 |
 
 ---
 
