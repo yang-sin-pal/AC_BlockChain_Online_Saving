@@ -9,7 +9,7 @@ export async function deployAllContracts() {
   const savingCore = await ethers.getContractFactory("SavingCore").then((f) => f.deploy());
   const vaultManager = await ethers
     .getContractFactory("VaultManager")
-    .then((f) => f.deploy(await usdc.getAddress(), await savingCore.getAddress()));
+    .then(async (f) => f.deploy(await usdc.getAddress(), await savingCore.getAddress()));
 
   await usdc.mint(await owner.getAddress(), toUSDC(10_000));
   await usdc.mint(await user.getAddress(), toUSDC(10_000));
