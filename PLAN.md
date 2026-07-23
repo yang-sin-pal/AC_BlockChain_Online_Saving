@@ -54,6 +54,8 @@
   > Ref: assignment §2.2 — deposit certificate records plan, principal, timestamps, snapshotted APR/penalty, status
 - [x] README.md skeleton with full TOC, personal variant values filled in
 
+> 📄 **Report:** [Day1-Report.md](docs/reports/Day1-Report.md)
+
 ---
 
 ## Day 2 — Tuesday, 21/7 — VaultManager + openDeposit *(not started — absorbed into Day 3)*
@@ -96,6 +98,8 @@
 - [x] `npx hardhat compile` — no errors
 - [x] `npx hardhat test` — all new tests pass
 - [ ] VaultManager + openDeposit: every branch has a dedicated test (test-standard.md §3)
+
+> 📄 **Report:** [Day3-Report.md](docs/reports/Day3-Report.md)
 
 ---
 
