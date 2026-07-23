@@ -13,22 +13,22 @@ interface ISavingCore {
     }
 
     struct Plan {
-        uint256 tenorDays;              // Term length in days
-        uint256 aprBps;                 // Annual interest rate in basis points (100 = 1%)
-        uint256 minDeposit;             // Minimum deposit amount, 0 = no limit
-        uint256 maxDeposit;             // Maximum deposit amount, 0 = no limit
-        uint256 earlyWithdrawPenaltyBps; // Early withdrawal penalty in basis points
-        bool enabled;                   // Admin can disable plan to block new deposits
+        uint32 tenorDays;               // 4 bytes — packed in slot 1
+        uint16 aprBps;                  // 2 bytes — packed in slot 1
+        uint16 earlyWithdrawPenaltyBps;  // 2 bytes — packed in slot 1
+        bool enabled;                    // 1 byte  — packed in slot 1
+        uint256 minDeposit;              // Slot 2
+        uint256 maxDeposit;              // Slot 3
     }
 
     struct Deposit {
-        uint256 planId;
-        uint256 principal;
-        uint256 aprBpsAtOpen;           // APR snapshot at deposit open time
-        uint256 penaltyBpsAtOpen;       // Penalty snapshot at deposit open time
-        uint256 startAt;
-        uint256 maturityAt;
-        Status status;
+        uint256 planId;            // Slot 1
+        uint256 principal;         // Slot 2
+        uint64 startAt;            // 8 bytes  ┐
+        uint64 maturityAt;         // 8 bytes  │ Slot 3 (21 bytes)
+        uint16 aprBpsAtOpen;       // 2 bytes  │
+        uint16 penaltyBpsAtOpen;   // 2 bytes  │
+        Status status;             // 1 byte   ┘
     }
 
     // ---------- Admin functions ----------
@@ -88,20 +88,4 @@ interface ISavingCore {
     /// @return newDepositId ID of the newly created deposit.
     function autoRenewDeposit(uint256 depositId) external returns (uint256 newDepositId);
 
-    // ---------- Events ----------
-
-    event PlanCreated(uint256 indexed planId, uint256 tenorDays, uint256 aprBps);
-    event PlanUpdated(uint256 indexed planId, uint256 newAprBps);
-    event DepositOpened(
-        uint256 indexed depositId,
-        address indexed owner,
-        uint256 indexed planId,
-        uint256 principal,
-        uint256 maturityAt,
-        uint256 aprBpsAtOpen
-    );
-    event Withdrawn(uint256 indexed depositId, address indexed owner, uint256 principal, uint256 interest, bool isEarly);
-    event Renewed(uint256 indexed oldDepositId, uint256 indexed newDepositId, uint256 newPrincipal, uint256 newPlanId);
-    event PlanEnabled(uint256 indexed planId);
-    event PlanDisabled(uint256 indexed planId);
 }

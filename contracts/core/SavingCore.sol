@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ISavingCore.sol";
 import "../interfaces/IVaultManager.sol";
 import "../libraries/Errors.sol";
+import "../libraries/Events.sol";
 
 /// @title SavingCore
 /// @notice Business logic: saving plan, mở/rút/gia hạn deposit, mint NFT chứng chỉ.
@@ -58,14 +59,14 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
 
         planId = nextPlanId++;
         plans[planId] = Plan({
-            tenorDays: tenorDays,
-            aprBps: aprBps,
+            tenorDays: uint32(tenorDays),
+            aprBps: uint16(aprBps),
+            earlyWithdrawPenaltyBps: uint16(earlyWithdrawPenaltyBps),
+            enabled: true,
             minDeposit: minDeposit,
-            maxDeposit: maxDeposit,
-            earlyWithdrawPenaltyBps: earlyWithdrawPenaltyBps,
-            enabled: true
+            maxDeposit: maxDeposit
         });
-        emit PlanCreated(planId, tenorDays, aprBps);
+        emit Events.PlanCreated(planId, tenorDays, aprBps);
     }
 
     /// @notice Updates the APR of a plan. Does not affect previously opened deposits.
@@ -74,8 +75,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     function updatePlan(uint256 planId, uint256 newAprBps) external onlyOwner {
         if (planId >= nextPlanId) revert SavingCore_PlanNotFound();
         // Chỉ đổi APR cho deposit MỚI — deposit cũ đã snapshot APR nên không bị ảnh hưởng.
-        plans[planId].aprBps = newAprBps;
-        emit PlanUpdated(planId, newAprBps);
+        plans[planId].aprBps = uint16(newAprBps);
+        emit Events.PlanUpdated(planId, newAprBps);
     }
 
     /// @notice Enables a plan to allow new deposits.
@@ -83,7 +84,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     function enablePlan(uint256 planId) external onlyOwner {
         if (planId >= nextPlanId) revert SavingCore_PlanNotFound();
         plans[planId].enabled = true;
-        emit PlanEnabled(planId);
+        emit Events.PlanEnabled(planId);
     }
 
     /// @notice Disables a plan to block new deposits. Existing active deposits remain unaffected.
@@ -91,7 +92,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     function disablePlan(uint256 planId) external onlyOwner {
         if (planId >= nextPlanId) revert SavingCore_PlanNotFound();
         plans[planId].enabled = false;
-        emit PlanDisabled(planId);
+        emit Events.PlanDisabled(planId);
     }
 
     // ---------- User functions: làm từ Ngày 2 ----------

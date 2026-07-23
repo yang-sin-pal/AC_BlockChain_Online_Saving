@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity 0.8.28;
 
 /// @title IVaultManager
 /// @notice Interface for the bank's interest vault (completely separate from user principal).
@@ -46,8 +46,4 @@ interface IVaultManager {
     /// @return The address currently set to receive penalties.
     function feeReceiver() external view returns (address);
 
-    event VaultFunded(address indexed from, uint256 amount);
-    event VaultWithdrawn(address indexed to, uint256 amount);
-    event FeeReceiverUpdated(address indexed newReceiver);
-    event InterestPaid(address indexed to, uint256 amount);
 }

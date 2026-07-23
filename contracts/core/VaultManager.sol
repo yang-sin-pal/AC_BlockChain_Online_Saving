@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/IVaultManager.sol";
 import "../libraries/Errors.sol";
+import "../libraries/Events.sol";
 
 /// @title VaultManager
 /// @notice Holds the bank's interest pool, completely separate from user principal.
@@ -42,7 +43,7 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     function fundVault(uint256 amount) external onlyOwner {
         if (amount == 0) revert VaultManager_ZeroAmount();
         usdc.safeTransferFrom(msg.sender, address(this), amount);
-        emit VaultFunded(msg.sender, amount);
+        emit Events.VaultFunded(msg.sender, amount);
     }
 
     /// @notice Admin withdraws excess funds from the vault.
@@ -50,14 +51,14 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     function withdrawVault(uint256 amount) external nonReentrant onlyOwner whenNotPaused {
         if (amount > usdc.balanceOf(address(this))) revert VaultManager_InsufficientBalance();
         usdc.safeTransfer(msg.sender, amount);
-        emit VaultWithdrawn(msg.sender, amount);
+        emit Events.VaultWithdrawn(msg.sender, amount);
     }
 
     /// @notice Sets the address that receives early-withdrawal penalties.
     /// @param receiver New address to receive penalties.
     function setFeeReceiver(address receiver) external onlyOwner {
         feeReceiver = receiver;
-        emit FeeReceiverUpdated(receiver);
+        emit Events.FeeReceiverUpdated(receiver);
     }
 
     /// @notice Emergency pause — blocks all withdrawals.
@@ -75,7 +76,7 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     /// @param amount Amount of USDC to transfer.
     function payInterest(address to, uint256 amount) external nonReentrant onlySavingCore {
         usdc.safeTransfer(to, amount);
-        emit InterestPaid(to, amount);
+        emit Events.InterestPaid(to, amount);
     }
 
     /// @notice Returns the current vault balance.
