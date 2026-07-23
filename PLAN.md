@@ -21,15 +21,16 @@
 
 ---
 
-## Progress (updated: 22/7/2026)
+## Progress (updated: 24/7/2026)
 
 | Day | Status | Notes |
 |-----|--------|-------|
 | Day 1 (20/7) | **100% done** | All 6 tasks complete. Fixes: @openzeppelin install, import paths, OZ v5 ReentrancyGuard, evmVersion cancun, BOM stripped, NatSpec. Compile + test pass. |
 | Day 2 (21/7) | **Skipped** | VaultManager.sol empty, openDeposit stub, all tests empty |
-| Day 3 (22/7) | 50% done | VaultManager complete (19/19 tests). openDeposit not started. |
+| Day 3 (22/7) | **100% done** | VaultManager (19/19) + openDeposit (10/10) complete. |
+| Day 4 (23/7) | **100% done** | withdrawAtMaturity (12/12) + earlyWithdraw (9/9) + InterestLib. 51 tests total. Q4+Q5 drafted. |
 
-**Schedule:** Today is 22/7 (Day 3). ~2 days behind. Day 1 blocker resolved — project compiles.
+**Schedule:** Today is 24/7 (Day 5). Days 1-4 complete — 51 tests passing.
 
 ---
 
@@ -89,15 +90,15 @@
 | 🟢 GREEN | Implement `openDeposit`: enabled check, min/max, `transferFrom`, mint ERC721 NFT, snapshot aprBpsAtOpen + penaltyBpsAtOpen, set maturityAt = block.timestamp + tenorDays × 86400 | assignment §3.1 steps §1–§6 |
 | 🔵 REFACTOR | Verify DepositOpened event emits correct fields, NatSpec complete | assignment §5 event, §10 |
 
-- [ ] **RED:** Write openDeposit tests — happy path + all revert conditions
-- [ ] **GREEN:** Implement openDeposit to pass tests
-- [ ] **BLUE:** Verify event, NatSpec, compile + test pass
+- [x] **RED:** Write openDeposit tests — happy path + all revert conditions
+- [x] **GREEN:** Implement openDeposit to pass tests
+- [x] **BLUE:** Verify event, NatSpec, compile + test pass
 
 ### End of Day 3 checklist
 
 - [x] `npx hardhat compile` — no errors
 - [x] `npx hardhat test` — all new tests pass
-- [ ] VaultManager + openDeposit: every branch has a dedicated test (test-standard.md §3)
+- [x] VaultManager + openDeposit: every branch has a dedicated test (test-standard.md §3)
 
 > 📄 **Report:** [Day3-Report.md](docs/reports/Day3-Report.md)
 
@@ -115,9 +116,9 @@
 | 🟢 GREEN | Implement: simple interest = (principal × aprBpsAtOpen × tenorSeconds) / (365 × 24 × 3600 × 10000). Multiply before divide. Use `>= maturityAt` for boundary. Transfer principal+interest from self, interest from vault. | assignment §3.2 formula, §10 precision tip |
 | 🔵 REFACTOR | NatSpec, verify Withdrawn event: depositId, owner, principal, interest, isEarly=false | assignment §5 |
 
-- [ ] **RED:** Write withdrawAtMaturity tests — formula proof + all revert branches
-- [ ] **GREEN:** Implement withdrawAtMaturity — multiply-before-divide, `>=` boundary
-- [ ] **BLUE:** Verify Withdrawn event, NatSpec, compile + test
+- [x] **RED:** Write withdrawAtMaturity tests — formula proof + all revert branches
+- [x] **GREEN:** Implement withdrawAtMaturity — multiply-before-divide, `>=` boundary
+- [x] **BLUE:** Verify Withdrawn event, NatSpec, compile + test
 
 > **Design Q4 (rounding dust):** Write answer in README now — prove with the odd-principal test which party keeps the truncated remainder. Ref: assignment §8.2 Q4
 >
@@ -131,15 +132,17 @@
 | 🟢 GREEN | Implement: calculate penalty, transfer (principal - penalty) to user, penalty to feeReceiver, status = Withdrawn | assignment §3.3 |
 | 🔵 REFACTOR | NatSpec, verify Withdrawn event with isEarly=true | assignment §5 |
 
-- [ ] **RED:** Write earlyWithdraw tests
-- [ ] **GREEN:** Implement earlyWithdraw
-- [ ] **BLUE:** Verify event, NatSpec
+- [x] **RED:** Write earlyWithdraw tests
+- [x] **GREEN:** Implement earlyWithdraw
+- [x] **BLUE:** Verify event, NatSpec
 
 ### End of Day 4 checklist
 
-- [ ] `npx hardhat compile` + `npx hardhat test` — all pass
-- [ ] Design Q4 and Q5 answers written in README, referencing specific test + line numbers
-- [ ] Interest formula proven with real numbers matching personal variant (assignment §8.1)
+- [x] `npx hardhat compile` + `npx hardhat test` — all pass
+- [x] Design Q4 and Q5 answers written in README, referencing specific test + line numbers
+- [x] Interest formula proven with real numbers matching personal variant (assignment §8.1)
+
+> 📄 **Report:** [Day4-Report.md](docs/reports/Day4-Report.md)
 
 ---
 

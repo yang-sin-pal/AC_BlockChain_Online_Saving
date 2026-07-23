@@ -229,3 +229,200 @@ npx tsc --noEmit
 | Coverage report unavailable | Medium | Day 6-7 (upstream fix dependent) |
 | SavingCore user functions still stubs | High | Days 3-5 |
 | No integration tests yet | Medium | Days 3-5 |
+
+---
+---
+
+# Day 3 Report — SavingCore Infrastructure + openDeposit (Phase 2/2)
+
+> **Project:** Online Saving System (Blockchain Programming Final Assignment)
+> **Date:** Thursday, 23/7/2026
+> **Student ID:** `...38`
+
+---
+
+## 11. Objectives
+
+| # | Task (from TODO.md Part 1+2) | Status |
+|---|-------------------------------|--------|
+| 1 | Add 11 custom errors to `Errors.sol` | **Done** |
+| 2 | Pin Solidity 0.8.28 in all `.sol` files | **Done** |
+| 3 | Update SavingCore constructor + storage (USDC, VaultManager, SafeERC20) | **Done** |
+| 4 | Add admin function input validation | **Done** |
+| 5 | Add enablePlan/disablePlan events | **Done** |
+| 6 | Add NatSpec to admin functions | **Done** |
+| 7 | Update test fixtures for new constructor | **Done** |
+| 8 | Centralize events in `Events.sol` | **Done** |
+| 9 | Compile gate: zero errors, 19 VaultManager tests pass | **Done** |
+| 10 | RED: Write 10 openDeposit tests | **Done** |
+| 11 | GREEN: Implement openDeposit in SavingCore.sol | **Done** |
+| 12 | BLUE: NatSpec + event verification | **Done** |
+
+---
+
+## 12. Deliverables
+
+| File | Action | Lines |
+|------|--------|------:|
+| `contracts/libraries/Errors.sol` | Added 11 custom errors (from placeholder) | 11 |
+| `contracts/libraries/Events.sol` | Centralized 7 events from ISavingCore | 40 |
+| `contracts/core/SavingCore.sol` | Pinned version, storage, constructor, admin validation, openDeposit | 141 |
+| `contracts/interfaces/ISavingCore.sol` | Pinned version, added PlanEnabled/PlanDisabled events, NatSpec | 91 |
+| `contracts/core/VaultManager.sol` | Pinned version only | 87 |
+| `contracts/mocks/MockUSDC.sol` | Pinned version only | 23 |
+| `test/core/SavingCore.test.ts` | 10 openDeposit test cases | 194 |
+| `test/helpers/fixtures.ts` | Updated constructor args, vault funding, feeReceiver | 37 |
+| `test/helpers/utils.ts` | Added `calculateExpectedInterest` helper | 25 |
+| `test/helpers/constants.ts` | Shared constants (APR, TENOR, PENALTY) | 9 |
+
+---
+
+## 13. Infrastructure Changes (TODO Part 1)
+
+### 13.1 Custom Errors (`Errors.sol`)
+
+11 errors added, all following `ContractName_Reason` convention:
+
+```solidity
+error SavingCore_PlanNotFound();
+error SavingCore_PlanNotEnabled();
+error SavingCore_DepositBelowMin();
+error SavingCore_DepositAboveMax();
+error SavingCore_ZeroAmount();
+error SavingCore_NotYetMature();
+error SavingCore_AlreadyWithdrawn();
+error SavingCore_FeeReceiverNotSet();
+error SavingCore_InvalidTenor();
+error SavingCore_InvalidApr();
+error SavingCore_InvalidDepositRange();
+```
+
+### 13.2 Constructor + Storage
+
+SavingCore now holds two immutable references for token operations:
+
+- `IERC20 public immutable usdc` — for `transferFrom`/`transfer` on deposits
+- `IVaultManager public immutable vaultManager` — for `payInterest` on maturity withdrawals
+
+Constructor signature: `constructor(address _usdc, address _vaultManager)`
+
+Added `using SafeERC20 for IERC20` — all token operations use safe variants.
+
+### 13.3 Admin Input Validation
+
+| Function | Validation | Error |
+|----------|-----------|-------|
+| `createPlan` | `tenorDays == 0` | `SavingCore_InvalidTenor` |
+| `createPlan` | `aprBps == 0` | `SavingCore_InvalidApr` |
+| `createPlan` | `minDeposit > maxDeposit` (both non-zero) | `SavingCore_InvalidDepositRange` |
+| `updatePlan` | `planId >= nextPlanId` | `SavingCore_PlanNotFound` |
+| `enablePlan` | `planId >= nextPlanId` | `SavingCore_PlanNotFound` |
+| `disablePlan` | `planId >= nextPlanId` | `SavingCore_PlanNotFound` |
+
+### 13.4 Events Centralized
+
+All events moved from `ISavingCore.sol` to `contracts/libraries/Events.sol`:
+
+- `PlanCreated`, `PlanUpdated`, `DepositOpened`, `Withdrawn`, `Renewed`
+- `PlanEnabled`, `PlanDisabled` (new for enable/disable)
+
+Emission pattern: `emit Events.PlanCreated(...)` via library import.
+
+### 13.5 Test Fixture Updates
+
+`fixtures.ts` now:
+1. Passes `usdc.getAddress()` and `vaultManager.getAddress()` to `SavingCore.deploy()`
+2. Funds vault with 10,000 USDC via `vaultManager.connect(owner).fundVault()`
+3. Sets `feeReceiver` to owner address via `vaultManager.connect(owner).setFeeReceiver()`
+4. User approves SavingCore with `MaxUint256` for test convenience
+
+---
+
+## 14. openDeposit TDD (TODO Part 2)
+
+### 14.1 RED — 10 Failing Tests
+
+| # | Test | Proves | Rule |
+|---|------|--------|------|
+| 1 | Happy path: deposit created, NFT minted, tokens transferred | Full flow | BR-01, BR-02, BR-05 |
+| 2 | DepositOpened event with correct args | Event correctness | §5 |
+| 3 | APR snapshot: updatePlan after open → deposit unchanged | Immutability | BR-04 |
+| 4 | Disabled plan → reverts PlanNotEnabled | Guard | BR-02 |
+| 5 | Amount below minDeposit → reverts DepositBelowMin | Guard | BR-01 |
+| 6 | Amount above maxDeposit → reverts DepositAboveMax | Guard | BR-01 |
+| 7 | Zero amount → reverts ZeroAmount | Guard | — |
+| 8 | maturityAt = block.timestamp + tenorDays × 86400 | Timestamp math | §3.1 |
+| 9 | Multiple deposits: nextDepositId increments, unique NFTs | State management | — |
+| 10 | Tokens go to SavingCore, not VaultManager | Architecture | §1.1 |
+
+All 10 tests failed with `revert("TODO")` stubs.
+
+### 14.2 GREEN — Implementation
+
+`SavingCore.openDeposit` (36 lines, `SavingCore.sol:106-141`):
+
+```
+Checks (5 guards):
+  1. planId < nextPlanId → PlanNotFound
+  2. plan.enabled → PlanNotEnabled
+  3. amount > 0 → ZeroAmount
+  4. amount >= minDeposit (if > 0) → DepositBelowMin
+  5. amount <= maxDeposit (if > 0) → DepositAboveMax
+
+Effects:
+  - nextDepositId++
+  - Write Deposit struct with snapshotted APR + penalty
+  - Set startAt = block.timestamp, maturityAt = timestamp + tenorDays × 86400
+
+Interactions:
+  - usdc.safeTransferFrom(msg.sender, address(this), amount)
+  - _safeMint(msg.sender, depositId)
+
+Event: DepositOpened(depositId, msg.sender, planId, amount, maturity_, aprBps)
+Return: depositId
+```
+
+Key design: tokens flow `User → SavingCore` (not VaultManager). Architecture separation — SavingCore holds principal, VaultManager holds interest pool.
+
+### 14.3 BLUE — Verification
+
+- NatSpec added: `@notice`, `@dev`, `@param`, `@return`
+- `nonReentrant` outermost modifier (before `override`)
+- CEI: deposit struct written before `safeTransferFrom`
+- Event `DepositOpened` verified with all 6 fields
+- Test results: 10/10 passing, 29 total (19 VaultManager + 10 openDeposit)
+
+---
+
+## 15. Updated Verification Results
+
+### Compilation
+
+```
+Compiled 1 Solidity file successfully (evm target: cancun).
+```
+
+Zero errors across all contracts.
+
+### Tests
+
+```
+51 passing (1s)
+```
+
+- VaultManager: 19/19
+- SavingCore openDeposit: 10/10
+- SavingCore withdrawAtMaturity: 12/12 (Day 4)
+- SavingCore earlyWithdraw: 9/9 (Day 4)
+
+---
+
+## 16. Updated Scoring Impact
+
+| Criterion | Points | Day 3 Contribution |
+|-----------|--------|---------------------|
+| Vault management & pause/unpause | 10 | VaultManager fully implemented + 19 tests |
+| APR/penalty snapshot immutable | 15 | openDeposit snapshots APR + penalty at open time (BR-04) |
+| Interest & penalty math | 20 | openDeposit sets up for interest calc (Day 4 completes) |
+| Code quality & events | 5 | NatSpec, event assertions, CEI, modifier ordering, centralized events |
+| Test coverage > 90% | 15 | Deferred (see [coverage-bug.md](./coverage-bug.md)) |
