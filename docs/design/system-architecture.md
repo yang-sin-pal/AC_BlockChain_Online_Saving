@@ -25,14 +25,24 @@ The Online Saving System is composed of three main smart contracts. The core pri
       │ • openDeposit             │  │ • fundVault / withdrawVault  │
       │ • withdraw (principal)    │  │ • pause/unpause              │
       │ • renew, mint NFT         │  │ • setFeeReceiver             │
-      └─────────────┬─────────────┘  └───────────────┬───────────────┘
+      └─────────────┬─────────────┘  └───────────────┬──────────────┘
                     │                                 │
         SavingCore → User                  VaultManager → User
         (returns principal, minus          (pays interest on
          penalty if early)                  withdrawAtMaturity)
                     │                                 │
                     ▼                                 ▼
-        User receives: principal (± penalty) + interest (2 separate sources)
+        -----------------------------------------------------
+        |withdraw at maturity:                               |
+        |Depositor: principal + interest (2 separate sources)|
+        |                                                    | 
+        |withdraw early                                      |
+        |penalty = (principal * penaltyBpsAtOpen) / 10,000   |
+        |Depositor : pricipal - penalty                      |
+        |feeReciever: penalty                                |
+        -----------------------------------------------------
+
+
 ```
 
 ---
