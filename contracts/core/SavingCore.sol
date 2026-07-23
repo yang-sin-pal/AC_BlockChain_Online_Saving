@@ -10,6 +10,7 @@ import "../interfaces/ISavingCore.sol";
 import "../interfaces/IVaultManager.sol";
 import "../libraries/Errors.sol";
 import "../libraries/Events.sol";
+import "../libraries/InterestLib.sol";
 
 /// @title SavingCore
 /// @notice Business logic: saving plan, mở/rút/gia hạn deposit, mint NFT chứng chỉ.
@@ -139,8 +140,34 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         return depositId;
     }
 
-    function withdrawAtMaturity(uint256 /*depositId*/) external pure override {
-        revert("TODO: implement Day 3");
+    /// @notice Withdraws principal + interest at or after maturity.
+    /// @dev Caller must be the NFT owner. Interest is paid from the vault.
+    ///      Principal is returned from SavingCore's own balance.
+    /// @param depositId ID of the deposit to withdraw.
+    function withdrawAtMaturity(uint256 depositId) external nonReentrant override {
+        Deposit storage deposit = deposits[depositId];
+
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        // Design Q5: >= boundary — at the exact maturity second, withdrawal is allowed
+        if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
+
+        uint256 principal = deposit.principal;
+        // Interest uses snapshotted APR from deposit open time (BR-04)
+        uint256 interest = InterestLib.calculateInterest(
+            principal,
+            deposit.aprBpsAtOpen,
+            plans[deposit.planId].tenorDays
+        );
+
+        // CEI: update state BEFORE external calls (code-convention.md §7)
+        deposit.status = Status.Withdrawn;
+
+        // Principal from SavingCore balance; interest from vault (architecture separation)
+        usdc.safeTransfer(msg.sender, principal);
+        vaultManager.payInterest(msg.sender, interest);
+
+        emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
     }
 
     function earlyWithdraw(uint256 /*depositId*/) external pure override {
