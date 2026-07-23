@@ -95,15 +95,48 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         emit Events.PlanDisabled(planId);
     }
 
-    // ---------- User functions: làm từ Ngày 2 ----------
+    // ---------- User functions ----------
 
-    function openDeposit(uint256 /*planId*/, uint256 /*amount*/)
+    /// @notice Opens a new term deposit for the given plan.
+    /// @dev User must approve SavingCore to spend USDC before calling.
+    /// @param planId ID of the saving plan.
+    /// @param amount Deposit amount (must be within plan's min/max range).
+    /// @return depositId ID of the newly created deposit.
+    function openDeposit(uint256 planId, uint256 amount)
         external
-        pure
+        nonReentrant
         override
         returns (uint256)
     {
-        revert("TODO: implement Day 2");
+        if (planId >= nextPlanId) revert SavingCore_PlanNotFound();
+        Plan storage plan = plans[planId];
+        if (!plan.enabled) revert SavingCore_PlanNotEnabled();
+        if (amount == 0) revert SavingCore_ZeroAmount();
+        if (plan.minDeposit != 0 && amount < plan.minDeposit)
+            revert SavingCore_DepositBelowMin();
+        if (plan.maxDeposit != 0 && amount > plan.maxDeposit)
+            revert SavingCore_DepositAboveMax();
+
+        uint256 depositId = nextDepositId++;
+        uint64 start_ = uint64(block.timestamp);
+        uint64 maturity_ = uint64(block.timestamp + uint256(plan.tenorDays) * 86400);
+
+        deposits[depositId] = Deposit({
+            planId: planId,
+            principal: amount,
+            startAt: start_,
+            maturityAt: maturity_,
+            aprBpsAtOpen: plan.aprBps,
+            penaltyBpsAtOpen: plan.earlyWithdrawPenaltyBps,
+            status: Status.Active
+        });
+
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
+        _safeMint(msg.sender, depositId);
+
+        emit Events.DepositOpened(depositId, msg.sender, planId, amount, maturity_, plan.aprBps);
+
+        return depositId;
     }
 
     function withdrawAtMaturity(uint256 /*depositId*/) external pure override {
