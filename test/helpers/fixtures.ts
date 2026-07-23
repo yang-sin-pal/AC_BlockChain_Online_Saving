@@ -18,6 +18,17 @@ export async function deployAllContracts() {
   await usdc.mint(await owner.getAddress(), toUSDC(10_000));
   await usdc.mint(await user.getAddress(), toUSDC(10_000));
 
+  // Fund vault with 10,000 USDC for interest payments
+  await usdc.connect(owner).approve(await vaultManager.getAddress(), toUSDC(10_000));
+  await vaultManager.connect(owner).fundVault(toUSDC(10_000));
+
+  // Set fee receiver for early withdrawal penalties
+  await vaultManager.connect(owner).setFeeReceiver(await owner.getAddress());
+
+  // User approves SavingCore to pull USDC on openDeposit
+  // unlimited approval for test convenience only — do not use this pattern in production integrations
+  await usdc.connect(user).approve(await savingCore.getAddress(), ethers.MaxUint256);
+
   return { usdc, savingCore, vaultManager, owner, user };
 }
 
