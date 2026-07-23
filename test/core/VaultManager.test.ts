@@ -197,7 +197,7 @@ describe("VaultManager", function () {
       const savingCoreAddr = await savingCore.getAddress();
       await impersonateAccount(savingCoreAddr);
       const savingCoreSigner = await ethers.getSigner(savingCoreAddr);
-      await owner.sendTransaction({ to: savingCoreAddr, value: ethers.parseEther("1") });
+      await ethers.provider.send("hardhat_setBalance", [savingCoreAddr, "0x56BC75E2D63100000"]);
 
       const userAddr = await user.getAddress();
       const userBalBefore = await usdc.balanceOf(userAddr);
