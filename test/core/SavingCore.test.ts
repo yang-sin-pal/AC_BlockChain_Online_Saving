@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { mine } from "@nomicfoundation/hardhat-network-helpers";
 import { deployAllContractsFixture } from "../helpers/fixtures";
-import { toUSDC } from "../helpers/utils";
+import { toUSDC, increaseTime, calculateExpectedInterest } from "../helpers/utils";
 import {
   DEFAULT_TENOR,
   DEFAULT_APR,
@@ -11,19 +11,19 @@ import {
   SECONDS_PER_DAY,
 } from "../helpers/constants";
 
+/** Creates a default plan (planId 0) and returns it for convenience. */
+async function fixtureWithPlan() {
+  const base = await loadFixture(deployAllContractsFixture);
+  const { savingCore, owner } = base;
+
+  await savingCore
+    .connect(owner)
+    .createPlan(DEFAULT_TENOR, DEFAULT_APR, toUSDC(100), toUSDC(100_000), PENALTY);
+
+  return base;
+}
+
 describe("SavingCore — openDeposit", function () {
-  /** Creates a default plan (planId 0) and returns it for convenience. */
-  async function fixtureWithPlan() {
-    const base = await loadFixture(deployAllContractsFixture);
-    const { savingCore, owner } = base;
-
-    await savingCore
-      .connect(owner)
-      .createPlan(DEFAULT_TENOR, DEFAULT_APR, toUSDC(100), toUSDC(100_000), PENALTY);
-
-    return base;
-  }
-
   // ─── 1. Happy path ────────────────────────────────────────────
 
   it("#1 — happy path: deposit created, NFT minted, tokens transferred", async function () {
@@ -190,5 +190,239 @@ describe("SavingCore — openDeposit", function () {
 
     // VaultManager balance unchanged
     expect(await vaultManager.vaultBalance()).to.equal(vaultBefore);
+  });
+});
+
+describe("SavingCore — withdrawAtMaturity", function () {
+  async function fixtureWithDeposit() {
+    const base = await loadFixture(fixtureWithPlan);
+    const { savingCore, user } = base;
+    const amount = toUSDC(10_000);
+    const tx = await savingCore.connect(user).openDeposit(0, amount);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    return { ...base, depositId: 0n, amount, openTimestamp: block!.timestamp };
+  }
+
+  // ─── 1. Happy path at exact maturityAt ─────────────────────────
+
+  it("#1 — happy path: withdraw at exact maturityAt → principal + interest paid", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const maturityAt = Number(deposit.maturityAt);
+    const principal = deposit.principal;
+    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await ethers.provider.send("evm_setNextBlockTimestamp", [maturityAt]);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    expect(userBalAfter).to.equal(userBalBefore + principal + expectedInterest);
+    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
+    expect(await savingCore.ownerOf(0)).to.equal(await user.getAddress());
+  });
+
+  // ─── 2. After maturityAt (+1 day) ─────────────────────────────
+
+  it("#2 — withdraw after maturityAt (+1 day) → same result", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const principal = deposit.principal;
+    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY + SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    expect(userBalAfter).to.equal(userBalBefore + principal + expectedInterest);
+    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
+  });
+
+  // ─── 3. Interest formula proof ─────────────────────────────────
+
+  it("#3 — interest formula proof: 10,000 USDC, 180 days, 400 bps → 197,260,273 units", async function () {
+    const { savingCore, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    const interestPaid = vaultBalBefore - vaultBalAfter;
+    const expectedInterest = calculateExpectedInterest(toUSDC(10_000), DEFAULT_APR, DEFAULT_TENOR);
+
+    expect(interestPaid).to.equal(expectedInterest);
+    expect(expectedInterest).to.equal(197_260_273n);
+  });
+
+  // ─── 4. Before maturity → revert ───────────────────────────────
+
+  it("#4 — before maturity → reverts NotYetMature", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotYetMature");
+  });
+
+  // ─── 5. Double withdraw → revert ──────────────────────────────
+
+  it("#5 — double withdraw → reverts AlreadyWithdrawn", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+  });
+
+  // ─── 6. Vault insufficient → revert ───────────────────────────
+
+  it("#6 — vault insufficient → reverts", async function () {
+    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    // Owner drains vault to 100 units (less than interest owed)
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal - 100n);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.reverted;
+  });
+
+  // ─── 7. Vault insufficient exact boundary ─────────────────────
+
+  it("#7 — vault insufficient exact boundary: vault = interest - 1 → reverts", async function () {
+    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    // Leave exactly interest - 1 in vault
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal - (expectedInterest - 1n));
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.reverted;
+  });
+
+  // ─── 8. Rounding dust ─────────────────────────────────────────
+
+  it("#8 — rounding dust: odd principal → truncated interest, dust stays in vault", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithPlan);
+
+    // Deposit odd principal above minDeposit (100 USDC)
+    const oddPrincipal = toUSDC(100) + 1n;
+    await savingCore.connect(user).openDeposit(0, oddPrincipal);
+
+    const vaultBalBefore = await vaultManager.vaultBalance();
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const interestPaid = vaultBalBefore - vaultBalAfter;
+    const expectedInterest = calculateExpectedInterest(oddPrincipal, DEFAULT_APR, DEFAULT_TENOR);
+
+    // Interest is truncated (integer division)
+    expect(interestPaid).to.equal(expectedInterest);
+    // User receives exactly principal + truncated interest
+    expect(userBalAfter).to.equal(userBalBefore + oddPrincipal + expectedInterest);
+  });
+
+  // ─── 9. Withdrawn event ────────────────────────────────────────
+
+  it("#9 — Withdrawn event: isEarly=false, correct principal + interest", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const principal = deposit.principal;
+    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    const tx = await savingCore.connect(user).withdrawAtMaturity(0);
+    const receipt = await tx.wait();
+
+    const iface = savingCore.interface;
+    const event = receipt!.logs
+      .map((log) => {
+        try { return iface.parseLog(log); } catch { return null; }
+      })
+      .find((e) => e?.name === "Withdrawn");
+
+    expect(event).to.not.be.null;
+    expect(event!.args.depositId).to.equal(0);
+    expect(event!.args.owner).to.equal(await user.getAddress());
+    expect(event!.args.principal).to.equal(principal);
+    expect(event!.args.interest).to.equal(expectedInterest);
+    expect(event!.args.isEarly).to.equal(false);
+  });
+
+  // ─── 10. Deposit status → Withdrawn ───────────────────────────
+
+  it("#10 — deposit status changes to Withdrawn after withdraw", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const deposit = await savingCore.deposits(0);
+    expect(deposit.status).to.equal(1); // Status.Withdrawn
+  });
+
+  // ─── 11. Non-NFT-owner → revert ───────────────────────────────
+
+  it("#11 — non-NFT-owner calls → reverts (OZ ERC721 check)", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+    const [, , other] = await ethers.getSigners();
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+
+    await expect(
+      savingCore.connect(other).withdrawAtMaturity(0),
+    ).to.be.reverted;
+  });
+
+  // ─── 12. APR snapshot immutability ────────────────────────────
+
+  it("#12 — APR snapshot: updatePlan after open → interest uses old APR", async function () {
+    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    // Update plan APR to 800 bps — should not affect existing deposit
+    await savingCore.connect(owner).updatePlan(0, 800);
+
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    const interestPaid = vaultBalBefore - vaultBalAfter;
+
+    // Interest calculated with original APR (400), not updated APR (800)
+    const expectedInterest = calculateExpectedInterest(toUSDC(10_000), DEFAULT_APR, DEFAULT_TENOR);
+    expect(interestPaid).to.equal(expectedInterest);
   });
 });
