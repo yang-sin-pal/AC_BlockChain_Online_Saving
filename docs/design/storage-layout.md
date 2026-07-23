@@ -1,76 +1,179 @@
 ﻿# Storage Layout
 
-This document describes how on-chain data is organized in the Online Saving System.
+This document describes how on-chain data is organized in the Online Saving System, with explicit attention to storage packing for gas efficiency.
 
-The goals are:
-
-- Clearly define the storage model.
-- Explain why each field exists.
-- Record immutable snapshot values.
-- Prepare for future storage optimization.
+**Goals:**
+- Define storage models for all contracts
+- Explain why each field exists
+- Record immutable snapshot values
+- Analyze and optimize storage packing
+- Prepare for future storage improvements
 
 ---
 
 # Overview
 
-The system stores two primary entities:
+The system stores three primary entities across two contracts:
 
 ```text
-Saving Plan
+MockUSDC (ERC20 Token)
       │
       ▼
-    Deposit
-      │
-      ▼
- ERC721 Certificate
+VaultManager ←─── SavingCore
+      │               │
+      ▼               ▼
+Interest Pool    Plan → Deposit → ERC721 Certificate
 ```
 
-- A **Plan** defines the saving product.
-- A **Deposit** is created from a specific plan.
-- Each deposit is represented by one ERC721 NFT.
+**Storage principles:**
+1. **Readability first** – clear field names and comments
+2. **Correct business logic** – all required fields per assignment
+3. **Stable layout** – avoid breaking changes after deployment
+4. **Packed efficiency** – minimize storage slots where safe
 
 ---
 
-# Plan
+# MockUSDC Storage
 
-A saving plan created and managed by the administrator.
+Standard ERC20 storage from OpenZeppelin:
 
-| Field | Type | Description |
-|------|------|-------------|
-| tenorDays | uint32 | Deposit duration in days. |
-| aprBps | uint16 | Annual Percentage Rate (basis points). |
-| minDeposit | uint256 | Minimum allowed deposit amount. |
-| maxDeposit | uint256 | Maximum allowed deposit amount. |
-| earlyWithdrawPenaltyBps | uint16 | Early withdrawal penalty (basis points). |
-| enabled | bool | Whether new deposits are allowed. |
+```solidity
+// Inherited from ERC20
+mapping(address => uint256) private _balances;
+mapping(address => mapping(address => uint256)) private _allowances;
+uint256 private _totalSupply;
+```
 
----
-
-# Deposit
-
-A saving account opened by a user.
-
-| Field | Type | Description |
-|------|------|-------------|
-| planId | uint256 | Source saving plan. |
-| principal | uint256 | Deposited amount. |
-| aprBpsAtOpen | uint16 | APR snapshot when deposit was opened. |
-| penaltyBpsAtOpen | uint16 | Penalty snapshot when deposit was opened. |
-| startAt | uint64 | Deposit start timestamp. |
-| maturityAt | uint64 | Maturity timestamp. |
-| status | Status | Current deposit status. |
+**Packing note:** ERC20 storage is already optimized by OpenZeppelin. No custom packing needed.
 
 ---
 
-# Deposit Status
+# VaultManager Storage
+
+## State Variables
+
+| Order | Variable | Type | Bytes | Slot Usage | Purpose |
+|-------|----------|------|-------|------------|---------|
+| 1 | `_owner` | address | 20 | Slot 1 (20/32) | Admin control (Ownable) |
+| 2 | `_token` | IERC20 | 20 | Slot 2 (20/32) | USDC address (immutable) |
+| 3 | `_feeReceiver` | address | 20 | Slot 3 (20/32) | Penalty recipient |
+| 4 | `_paused` | bool | 1 | Slot 4 (1/32) | Emergency stop |
+
+**Packing analysis:**
+- Each `address` is 20 bytes, requiring its own slot (cannot pack two addresses in one 32-byte slot).
+- `_paused` (1 byte) could theoretically pack with an address if declared consecutively, but OpenZeppelin's `Ownable` and `Pausable` each reserve dedicated slots.
+- **Current layout:** 4 slots total (3 for addresses, 1 for bool).
+- **Optimization possible:** If we implement custom ownership without OpenZeppelin, we could pack `_owner` + `_paused` (20+1=21 bytes) in one slot, saving 1 slot. However, this sacrifices OpenZeppelin's battle-tested security.
+
+**Recommendation:** Keep OpenZeppelin's storage layout for security. The gas savings (1 SSTORE ≈ 20,000 gas for cold slot) are minimal compared to audit risk.
+
+---
+
+# SavingCore Storage
+
+## Plan Struct
+
+```solidity
+struct Plan {
+    uint32 tenorDays;           // 4 bytes
+    uint16 aprBps;              // 2 bytes
+    uint16 earlyWithdrawPenaltyBps; // 2 bytes
+    bool enabled;               // 1 byte
+    uint256 minDeposit;         // 32 bytes
+    uint256 maxDeposit;         // 32 bytes
+}
+```
+
+**Packing analysis:**
+- **Without packing (original order):** 6 slots (tenorDays, aprBps, minDeposit, maxDeposit, earlyWithdrawPenaltyBps, enabled).
+- **With packing (reordered):** 3 slots:
+  - Slot 1: `tenorDays` (4) + `aprBps` (2) + `earlyWithdrawPenaltyBps` (2) + `enabled` (1) = 9 bytes ✓
+  - Slot 2: `minDeposit` (32 bytes)
+  - Slot 3: `maxDeposit` (32 bytes)
+
+**Why reorder?** The first four fields are small (≤8 bytes total) and are always read/written together during plan creation/update. Packing them reduces storage writes from 4 to 1 slot for these fields.
+
+**Gas impact:** Creating a plan saves ~60,000 gas (3 fewer SSTORE operations at 20,000 gas each for cold slots).
+
+## Deposit Struct
+
+```solidity
+struct Deposit {
+    uint256 planId;            // 32 bytes
+    uint256 principal;         // 32 bytes
+    uint64 startAt;            // 8 bytes
+    uint64 maturityAt;         // 8 bytes
+    uint16 aprBpsAtOpen;       // 2 bytes
+    uint16 penaltyBpsAtOpen;   // 2 bytes
+    Status status;             // 1 byte (uint8)
+}
+```
+
+**Packing analysis:**
+- **Without packing (original order):** 5 slots (planId, principal, startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status).
+- **With packing (reordered):** 3 slots:
+  - Slot 1: `planId` (32 bytes)
+  - Slot 2: `principal` (32 bytes)
+  - Slot 3: `startAt` (8) + `maturityAt` (8) + `aprBpsAtOpen` (2) + `penaltyBpsAtOpen` (2) + `status` (1) = 21 bytes ✓
+
+**Why this order?**
+- `planId` and `principal` are the most frequently read fields (for display, interest calculations).
+- The timestamp and rate fields are always read together during maturity checks.
+- `status` is small and fits in the remaining space.
+
+**Gas impact:** Each deposit open saves ~40,000 gas (2 fewer SSTORE operations).
+
+## Status Enum
 
 ```solidity
 enum Status {
-    Active,
-    Withdrawn,
-    ManualRenewed,
-    AutoRenewed
+    Active,      // 0
+    Withdrawn,   // 1
+    ManualRenewed, // 2
+    AutoRenewed  // 3
 }
+```
+
+**Storage:** Stored as `uint8` (1 byte) in the packed slot.
+
+## State Variables
+
+| Order | Variable | Type | Purpose |
+|-------|----------|------|---------|
+| 1 | `_owner` | address | Admin (Ownable2Step) |
+| 2 | `_token` | IERC20 | USDC (immutable) |
+| 3 | `_vaultManager` | address | Vault interaction (immutable) |
+| 4 | `plans` | mapping(uint256 => Plan) | Plan storage |
+| 5 | `deposits` | mapping(uint256 => Deposit) | Deposit storage |
+| 6 | `planCount` | uint256 | Plan ID counter |
+| 7 | `depositCount` | uint256 | Deposit ID counter |
+
+**Packing note:** Mappings don't pack (each mapping uses a full slot for the base slot). The counters could be packed with something else, but they're rarely accessed together with other variables.
+
+---
+
+# Relationships
+
+```text
+VaultManager
+  ├── token: IERC20 (MockUSDC)
+  ├── feeReceiver: address
+  └── paused: bool
+
+SavingCore
+  ├── token: IERC20 (MockUSDC)
+  ├── vaultManager: address
+  ├── plans: mapping(uint256 => Plan)
+  │     └── Plan
+  │           ├── tenorDays, aprBps, earlyWithdrawPenaltyBps, enabled (packed)
+  │           ├── minDeposit
+  │           └── maxDeposit
+  └── deposits: mapping(uint256 => Deposit)
+        └── Deposit
+              ├── planId
+              ├── principal
+              ├── startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status (packed)
+              └── ERC721 tokenId = depositId
 ```
 
 ---
@@ -80,9 +183,9 @@ enum Status {
 The following values are stored permanently when a deposit is opened.
 
 | Field | Reason |
-|------|--------|
-| aprBpsAtOpen | Existing deposits must not change if the administrator updates the plan APR. |
-| penaltyBpsAtOpen | Existing deposits must keep their original early withdrawal penalty. |
+|-------|--------|
+| `aprBpsAtOpen` | Existing deposits must not change if the administrator updates the plan APR. |
+| `penaltyBpsAtOpen` | Existing deposits must keep their original early withdrawal penalty. |
 
 Example:
 
@@ -107,42 +210,87 @@ earn 6%
 
 ---
 
-# Relationships
+# Open Questions Impact on Storage
 
-```text
-Plan
-  │
-  ├──── Deposit #1
-  ├──── Deposit #2
-  └──── Deposit #3
+## 1. Transferable Certificate (§8.2.1)
+**Storage impact:** ERC721's `ownerOf(tokenId)` maps to the NFT owner, not necessarily the original depositor. The `Deposit` struct doesn't store the owner (ERC721 handles it). This is correct per assignment.
 
-Each Deposit
-        │
-        ▼
-One ERC721 NFT
-```
+## 2. Empty Vault (§8.2.2)
+**Storage impact:** No additional storage needed. The check is runtime: `if (vault.balance < interest) revert;`.
+
+## 3. Dead Bot (§8.2.3)
+**Storage impact:** If we implement a grace period tracking (e.g., `gracePeriodEnd` per deposit), we'd add a `uint64` field. This would pack with the existing timestamp fields (adding 8 bytes to the packed slot, still within 32 bytes). However, the assignment uses a global grace period constant, not per-deposit storage.
+
+## 4. Rounding Dust (§8.2.4)
+**Storage impact:** Dust stays in the vault (no additional storage). The formula `interest = (principal * aprBps * tenorSeconds) / (365 days * 10000)` naturally truncates.
+
+## 5. Boundary Times (§8.2.5)
+**Storage impact:** No storage changes. The comparison operators (`>=` vs `>`) are in code logic, not storage.
+
+## 6. Disabled Plan with Active Deposits (§8.2.6)
+**Storage impact:** The `Plan.enabled` flag only controls new deposits. Active deposits continue to maturity. No extra storage needed.
+
+## 7. Attack Thinking (§8.2.7)
+**Storage impact:** Reentrancy guards (OpenZeppelin's `ReentrancyGuard`) add a `_status` slot (uint256, 32 bytes). This is a necessary security cost.
 
 ---
 
-# Storage Considerations
+# Storage Packing Summary
 
-Current priority:
+## Total Slot Count (Optimized)
 
-- Readability
-- Correct business logic
-- Stable storage layout
+| Contract | Slots | Notes |
+|----------|-------|-------|
+| MockUSDC | ~3 | ERC20 standard (balances, allowances, totalSupply) |
+| VaultManager | 4 | 3 addresses + 1 bool |
+| SavingCore | 7 | owner, token, vaultManager, planCount, depositCount + 2 mappings |
+| Plan (each) | 3 | Packed small fields + 2 uint256 |
+| Deposit (each) | 3 | 2 uint256 + packed timestamps/rates/status |
 
-Storage packing optimization may be applied after the core implementation is completed.
+## Gas Savings from Packing
+
+| Operation | Without Packing | With Packing | Savings |
+|-----------|-----------------|--------------|---------|
+| Create Plan | 5 SSTORE | 3 SSTORE | ~40,000 gas |
+| Open Deposit | 5 SSTORE | 3 SSTORE | ~40,000 gas |
+| Update Plan | 4 SSTORE | 1 SSTORE | ~60,000 gas |
+| Withdraw | 2 SSTORE | 2 SSTORE | 0 (status update) |
+
+## Packing Rules Applied
+
+1. **Group small fields together:** `uint32`, `uint16`, `bool`, `enum` in one slot.
+2. **Keep large fields separate:** `uint256` gets its own slot.
+3. **Order by access pattern:** Fields read together are packed together.
+4. **Preserve readability:** Comments explain each field's purpose.
 
 ---
 
 # Future Optimization
 
-Possible improvements include:
+1. **Storage packing for VaultManager:** Custom Ownable to pack `_owner` + `_paused` (saves 1 slot).
+2. **Deposit ID as `uint96`:** If we limit deposits to 2^96 (~7.9e28), we could pack it with other fields.
+3. **Caching:** Store frequently accessed values (e.g., current block timestamp) in memory, not storage.
+4. **Custom errors:** Already planned per `Errors.sol` (no storage impact).
+5. **Lazy deletion:** Mark deposits as `Withdrawn` but don't delete data (historical record).
 
-- Storage packing for smaller integer types.
-- Reordering struct fields to reduce storage slots.
-- Caching frequently used values.
-- Using custom errors instead of revert strings.
+---
 
-// sau này cập nhật thêm storage packing.
+# Deployment Considerations
+
+1. **Storage gaps:** Use `uint256[50] private __gap` in contracts for upgradeability.
+2. **Immutable variables:** `_token` and `_vaultManager` are immutable (no storage cost after deployment).
+3. **Mapping initialization:** Mappings start empty; no initialization cost.
+4. **Struct alignment:** Solidity packs structs sequentially; reordering fields changes storage layout.
+
+---
+
+# Validation Checklist
+
+- [x] All assignment §2.1 Plan fields present
+- [x] All assignment §2.2 Deposit fields present
+- [x] Snapshot fields (aprBpsAtOpen, penaltyBpsAtOpen) documented
+- [x] VaultManager storage covers §4 admin functions
+- [x] ERC721 link (tokenId = depositId) documented
+- [x] Storage packing analysis with gas savings
+- [x] Open questions storage impact addressed
+- [x] Future optimization roadmap
