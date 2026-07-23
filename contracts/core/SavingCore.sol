@@ -170,8 +170,29 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
     }
 
-    function earlyWithdraw(uint256 /*depositId*/) external pure override {
-        revert("TODO: implement Day 3");
+    /// @notice Early withdrawal — no interest, penalty deducted from principal.
+    /// @dev Caller must be the NFT owner. Penalty is sent to feeReceiver, not the vault.
+    ///      Principal minus penalty is returned from SavingCore's own balance.
+    /// @param depositId ID of the deposit to withdraw early.
+    function earlyWithdraw(uint256 depositId) external nonReentrant override {
+        Deposit storage deposit = deposits[depositId];
+
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        if (vaultManager.feeReceiver() == address(0)) revert SavingCore_FeeReceiverNotSet();
+
+        uint256 principal = deposit.principal;
+        uint256 penalty = (principal * deposit.penaltyBpsAtOpen) / 10_000;
+        uint256 userAmount = principal - penalty;
+
+        // CEI: update state before external calls
+        deposit.status = Status.Withdrawn;
+
+        address feeReceiver_ = vaultManager.feeReceiver();
+        usdc.safeTransfer(msg.sender, userAmount);
+        usdc.safeTransfer(feeReceiver_, penalty);
+
+        emit Events.Withdrawn(depositId, msg.sender, principal, 0, true);
     }
 
     function renewDeposit(uint256 /*depositId*/, uint256 /*newPlanId*/)

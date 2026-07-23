@@ -137,9 +137,19 @@ describe("SavingCore — openDeposit", function () {
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_ZeroAmount");
   });
 
-  // ─── 8. maturityAt exact value ────────────────────────────────
+  // ─── 8. Nonexistent planId ─────────────────────────────────────
 
-  it("#8 — maturityAt equals block.timestamp + tenorDays * 86400", async function () {
+  it("#8 — nonexistent planId → reverts PlanNotFound", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithPlan);
+
+    await expect(
+      savingCore.connect(user).openDeposit(999, toUSDC(1_000)),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_PlanNotFound");
+  });
+
+  // ─── 9. maturityAt exact value ────────────────────────────────
+
+  it("#9 — maturityAt equals block.timestamp + tenorDays * 86400", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithPlan);
 
     const tx = await savingCore.connect(user).openDeposit(0, toUSDC(1_000));
@@ -155,9 +165,9 @@ describe("SavingCore — openDeposit", function () {
     expect(deposit.maturityAt).to.equal(expectedMaturity);
   });
 
-  // ─── 9. Multiple deposits increment IDs ───────────────────────
+  // ─── 10. Multiple deposits increment IDs ──────────────────────
 
-  it("#9 — multiple deposits: nextDepositId increments, each gets unique NFT", async function () {
+  it("#10 — multiple deposits: nextDepositId increments, each gets unique NFT", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithPlan);
 
     await savingCore.connect(user).openDeposit(0, toUSDC(1_000));
@@ -175,9 +185,9 @@ describe("SavingCore — openDeposit", function () {
     expect(d0.principal).to.not.equal(d1.principal);
   });
 
-  // ─── 10. Tokens in SavingCore, not VaultManager ───────────────
+  // ─── 11. Tokens in SavingCore, not VaultManager ──────────────
 
-  it("#10 — tokens go to SavingCore, not VaultManager", async function () {
+  it("#11 — tokens go to SavingCore, not VaultManager", async function () {
     const { savingCore, usdc, vaultManager, user } = await loadFixture(fixtureWithPlan);
     const amount = toUSDC(3_000);
 
@@ -521,10 +531,9 @@ describe("SavingCore — earlyWithdraw", function () {
   it("#4 — feeReceiver not set → reverts FeeReceiverNotSet", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDepositNoFeeReceiver);
 
-    // GREEN phase: change to .revertedWithCustomError(savingCore, "SavingCore_FeeReceiverNotSet")
     await expect(
       savingCore.connect(user).earlyWithdraw(0),
-    ).to.be.reverted;
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_FeeReceiverNotSet");
   });
 
   // ─── 5. Double early withdraw → revert ────────────────────────
@@ -602,9 +611,8 @@ describe("SavingCore — earlyWithdraw", function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
     const [, , other] = await ethers.getSigners();
 
-    // GREEN phase: change to .revertedWithCustomError(savingCore, "SavingCore_NotOwner")
     await expect(
       savingCore.connect(other).earlyWithdraw(0),
-    ).to.be.reverted;
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotOwner");
   });
 });
