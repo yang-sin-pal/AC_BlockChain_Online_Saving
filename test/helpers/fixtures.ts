@@ -1,7 +1,22 @@
-﻿// Chứa hàm setup dùng chung cho test.
+﻿import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { toUSDC } from "./utils";
 
-// Ví dụ:
+export async function deployAllContracts() {
+  const [owner, user] = await ethers.getSigners();
 
-// deployAllContracts()
+  const usdc = await ethers.getContractFactory("MockUSDC").then((f) => f.deploy());
+  const savingCore = await ethers.getContractFactory("SavingCore").then((f) => f.deploy());
+  const vaultManager = await ethers
+    .getContractFactory("VaultManager")
+    .then((f) => f.deploy(await usdc.getAddress(), await savingCore.getAddress()));
 
-// để mọi file test không phải deploy lại từ đầu.
+  await usdc.mint(await owner.getAddress(), toUSDC(10_000));
+  await usdc.mint(await user.getAddress(), toUSDC(10_000));
+
+  return { usdc, savingCore, vaultManager, owner, user };
+}
+
+export async function deployAllContractsFixture() {
+  return loadFixture(deployAllContracts);
+}

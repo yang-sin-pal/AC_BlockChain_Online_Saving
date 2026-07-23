@@ -1,7 +1,11 @@
-﻿// Các hàm tiện ích cho test.
+﻿import { ethers } from "hardhat";
+import { USDC_UNIT } from "./constants";
 
-// Ví dụ:
+export function toUSDC(n: number): bigint {
+  return BigInt(n) * BigInt(USDC_UNIT);
+}
 
-// toUSDC(100)
-// increaseTime(30)
-// expectRevert(...)
+export async function increaseTime(seconds: number): Promise<void> {
+  await ethers.provider.send("evm_increaseTime", [seconds]);
+  await ethers.provider.send("evm_mine");
+}
