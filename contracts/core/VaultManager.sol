@@ -16,7 +16,7 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     using SafeERC20 for IERC20;
 
     IERC20 public immutable usdc;
-    address public immutable savingCore;
+    address public savingCore;
     address public feeReceiver;
 
     modifier onlySavingCore() {
@@ -24,11 +24,16 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
         _;
     }
 
-    /// @notice Deploys VaultManager with the USDC token and SavingCore addresses.
+    /// @notice Deploys VaultManager with the USDC token address.
     /// @param _usdc The USDC ERC20 token address.
-    /// @param _savingCore The SavingCore contract that may call payInterest.
-    constructor(address _usdc, address _savingCore) Ownable(msg.sender) {
+    constructor(address _usdc) Ownable(msg.sender) {
         usdc = IERC20(_usdc);
+    }
+
+    /// @notice Sets the SavingCore address. Can only be called once.
+    /// @param _savingCore The address of the SavingCore contract.
+    function setSavingCore(address _savingCore) external onlyOwner {
+        if (savingCore != address(0)) revert VaultManager_SavingCoreAlreadySet();
         savingCore = _savingCore;
     }
 

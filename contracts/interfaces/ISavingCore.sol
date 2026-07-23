@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 /// @title ISavingCore
 /// @notice Interface for the blockchain-based term deposit saving system.
@@ -102,4 +102,6 @@ interface ISavingCore {
     );
     event Withdrawn(uint256 indexed depositId, address indexed owner, uint256 principal, uint256 interest, bool isEarly);
     event Renewed(uint256 indexed oldDepositId, uint256 indexed newDepositId, uint256 newPrincipal, uint256 newPlanId);
+    event PlanEnabled(uint256 indexed planId);
+    event PlanDisabled(uint256 indexed planId);
 }

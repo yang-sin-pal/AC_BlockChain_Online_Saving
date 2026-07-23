@@ -1,5 +1,2 @@
-// Events.sol
-
-// Có thể gom toàn bộ event.
-
-// Không bắt buộc.
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;

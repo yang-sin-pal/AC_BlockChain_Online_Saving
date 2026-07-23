@@ -11,14 +11,16 @@ describe("VaultManager", function () {
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy();
 
-    const SavingCore = await ethers.getContractFactory("SavingCore");
-    const savingCore = await SavingCore.deploy();
-
     const VaultManager = await ethers.getContractFactory("VaultManager");
-    const vaultManager = await VaultManager.deploy(
+    const vaultManager = await VaultManager.deploy(await usdc.getAddress());
+
+    const SavingCore = await ethers.getContractFactory("SavingCore");
+    const savingCore = await SavingCore.deploy(
       await usdc.getAddress(),
-      await savingCore.getAddress()
+      await vaultManager.getAddress()
     );
+
+    await vaultManager.setSavingCore(await savingCore.getAddress());
 
     await usdc.mint(await owner.getAddress(), toUSDC(10_000));
     await usdc.mint(await user.getAddress(), toUSDC(10_000));

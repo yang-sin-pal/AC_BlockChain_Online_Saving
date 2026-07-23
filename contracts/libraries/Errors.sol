@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity 0.8.28;
 
 error VaultManager_OnlySavingCore();
 error VaultManager_InsufficientBalance();
 error VaultManager_ZeroAmount();
+error VaultManager_SavingCoreAlreadySet();
 
 error SavingCore_PlanNotFound();
 error SavingCore_PlanNotEnabled();

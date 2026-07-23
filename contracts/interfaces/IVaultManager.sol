@@ -19,6 +19,11 @@ interface IVaultManager {
     /// @param receiver New address to receive penalties.
     function setFeeReceiver(address receiver) external;
 
+    /// @notice Sets the SavingCore address. Can only be called once.
+    /// @dev Only callable by the contract owner.
+    /// @param _savingCore The address of the SavingCore contract.
+    function setSavingCore(address _savingCore) external;
+
     /// @notice Emergency pause — blocks all withdrawals and renewals.
     /// @dev Only callable by the contract owner.
     function pause() external;

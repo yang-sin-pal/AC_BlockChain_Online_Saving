@@ -6,10 +6,14 @@ export async function deployAllContracts() {
   const [owner, user] = await ethers.getSigners();
 
   const usdc = await ethers.getContractFactory("MockUSDC").then((f) => f.deploy());
-  const savingCore = await ethers.getContractFactory("SavingCore").then((f) => f.deploy());
-  const vaultManager = await ethers
-    .getContractFactory("VaultManager")
-    .then(async (f) => f.deploy(await usdc.getAddress(), await savingCore.getAddress()));
+
+  const vaultManager = await ethers.getContractFactory("VaultManager")
+    .then(async (f) => f.deploy(await usdc.getAddress()));
+
+  const savingCore = await ethers.getContractFactory("SavingCore")
+    .then(async (f) => f.deploy(await usdc.getAddress(), await vaultManager.getAddress()));
+
+  await vaultManager.setSavingCore(await savingCore.getAddress());
 
   await usdc.mint(await owner.getAddress(), toUSDC(10_000));
   await usdc.mint(await user.getAddress(), toUSDC(10_000));
