@@ -100,7 +100,9 @@ describe("VaultManager", function () {
     it("#7 — owner withdraws exact vault balance (zero dust left) → succeeds, balance = 0", async function () {
       const { vaultManager, owner } = await loadFixture(fundVaultFixture);
 
-      await vaultManager.connect(owner).withdrawVault(toUSDC(1000));
+      await expect(vaultManager.connect(owner).withdrawVault(toUSDC(1000)))
+        .to.emit(vaultManager, "VaultWithdrawn")
+        .withArgs(await owner.getAddress(), toUSDC(1000));
       expect(await vaultManager.vaultBalance()).to.equal(0n);
     });
   });
@@ -134,14 +136,18 @@ describe("VaultManager", function () {
     it("#10 — owner pauses → succeeds", async function () {
       const { vaultManager, owner } = await loadFixture(deployVaultManager);
 
-      await expect(vaultManager.connect(owner).pause()).to.not.be.reverted;
+      await expect(vaultManager.connect(owner).pause())
+        .to.emit(vaultManager, "Paused")
+        .withArgs(await owner.getAddress());
     });
 
     it("#11 — owner unpauses after pause → succeeds", async function () {
       const { vaultManager, owner } = await loadFixture(deployVaultManager);
 
       await vaultManager.connect(owner).pause();
-      await expect(vaultManager.connect(owner).unpause()).to.not.be.reverted;
+      await expect(vaultManager.connect(owner).unpause())
+        .to.emit(vaultManager, "Unpaused")
+        .withArgs(await owner.getAddress());
     });
 
     it("#12 — non-owner calls pause → reverts", async function () {
@@ -179,7 +185,9 @@ describe("VaultManager", function () {
       await vaultManager.connect(owner).pause();
       await usdc.connect(owner).approve(await vaultManager.getAddress(), toUSDC(100));
 
-      await expect(vaultManager.connect(owner).fundVault(toUSDC(100))).to.not.be.reverted;
+      await expect(vaultManager.connect(owner).fundVault(toUSDC(100)))
+        .to.emit(vaultManager, "VaultFunded")
+        .withArgs(await owner.getAddress(), toUSDC(100));
     });
   });
 
