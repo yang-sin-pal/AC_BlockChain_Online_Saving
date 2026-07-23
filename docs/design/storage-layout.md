@@ -52,17 +52,22 @@ uint256 private _totalSupply;
 
 ## State Variables
 
+Storage layout follows C3 linearization of the inheritance chain: `Ownable2Step → ReentrancyGuard → Pausable`.
+
 | Order | Variable | Type | Bytes | Slot Usage | Purpose |
 |-------|----------|------|-------|------------|---------|
-| 1 | `_owner` | address | 20 | Slot 1 (20/32) | Admin control (Ownable) |
-| 2 | `_token` | IERC20 | 20 | Slot 2 (20/32) | USDC address (immutable) |
-| 3 | `_feeReceiver` | address | 20 | Slot 3 (20/32) | Penalty recipient |
-| 4 | `_paused` | bool | 1 | Slot 4 (1/32) | Emergency stop |
+| 1 | `_owner` | address | 20 | Slot 1 (20/32) | Admin control (Ownable2Step) |
+| 2 | `_status` | uint256 | 32 | Slot 2 (32/32) | Reentrancy guard (ReentrancyGuard) |
+| 3 | `_paused` | bool | 1 | Slot 3 (1/32) | Emergency stop (Pausable) |
+| — | `usdc` | IERC20 | — | **Immutable** (bytecode) | USDC token address |
+| 4 | `savingCore` | address | 20 | Slot 4 (20/32) | SavingCore address (set once) |
+| 5 | `feeReceiver` | address | 20 | Slot 5 (20/32) | Penalty recipient |
 
 **Packing analysis:**
-- Each `address` is 20 bytes, requiring its own slot (cannot pack two addresses in one 32-byte slot).
-- `_paused` (1 byte) could theoretically pack with an address if declared consecutively, but OpenZeppelin's `Ownable` and `Pausable` each reserve dedicated slots.
-- **Current layout:** 4 slots total (3 for addresses, 1 for bool).
+- OpenZeppelin's `Ownable2Step`, `ReentrancyGuard`, and `Pausable` each reserve dedicated slots — cannot repack them.
+- `savingCore` (20 bytes) and `feeReceiver` (20 bytes) each need their own slot (two addresses cannot fit in one 32-byte slot).
+- `usdc` is `immutable` — stored in contract bytecode, not storage. Zero slot cost after deployment.
+- **Current layout:** 5 storage slots + 1 immutable (bytecode).
 - **Optimization possible:** If we implement custom ownership without OpenZeppelin, we could pack `_owner` + `_paused` (20+1=21 bytes) in one slot, saving 1 slot. However, this sacrifices OpenZeppelin's battle-tested security.
 
 **Recommendation:** Keep OpenZeppelin's storage layout for security. The gas savings (1 SSTORE ≈ 20,000 gas for cold slot) are minimal compared to audit risk.
@@ -138,17 +143,18 @@ enum Status {
 
 ## State Variables
 
-| Order | Variable | Type | Purpose |
-|-------|----------|------|---------|
-| 1 | `_owner` | address | Admin (Ownable2Step) |
-| 2 | `_token` | IERC20 | USDC (immutable) |
-| 3 | `_vaultManager` | address | Vault interaction (immutable) |
-| 4 | `plans` | mapping(uint256 => Plan) | Plan storage |
-| 5 | `deposits` | mapping(uint256 => Deposit) | Deposit storage |
-| 6 | `planCount` | uint256 | Plan ID counter |
-| 7 | `depositCount` | uint256 | Deposit ID counter |
+Storage layout follows C3 linearization of the inheritance chain: `ERC721 → Ownable2Step → ReentrancyGuard`. OZ inherited slots (ERC721's `_owners`/`_balances`/approvals mappings, `_owner`, `_status`) are omitted — shown only for contract-owned variables.
 
-**Packing note:** Mappings don't pack (each mapping uses a full slot for the base slot). The counters could be packed with something else, but they're rarely accessed together with other variables.
+| Order | Variable | Type | Bytes | Slot Usage | Purpose |
+|-------|----------|------|-------|------------|---------|
+| — | `usdc` | IERC20 | — | **Immutable** (bytecode) | USDC token address |
+| — | `vaultManager` | IVaultManager | — | **Immutable** (bytecode) | Vault interaction |
+| 1 | `deposits` | mapping(uint256 => Deposit) | 32 | Slot 1 | Deposit storage |
+| 2 | `nextDepositId` | uint256 | 32 | Slot 2 | Deposit ID counter |
+| 3 | `plans` | mapping(uint256 => Plan) | 32 | Slot 3 | Plan storage |
+| 4 | `nextPlanId` | uint256 | 32 | Slot 4 | Plan ID counter |
+
+**Packing note:** Mappings don't pack (each mapping uses a full slot for the base slot). The counters could be packed with something else, but they're rarely accessed together with other variables. `usdc` and `vaultManager` are `immutable` — stored in bytecode, not storage, so they occupy zero storage slots after deployment.
 
 ---
 
@@ -156,13 +162,14 @@ enum Status {
 
 ```text
 VaultManager
-  ├── token: IERC20 (MockUSDC)
+  ├── usdc: IERC20 (MockUSDC)        [immutable]
+  ├── savingCore: address             [set once]
   ├── feeReceiver: address
   └── paused: bool
 
 SavingCore
-  ├── token: IERC20 (MockUSDC)
-  ├── vaultManager: address
+  ├── usdc: IERC20 (MockUSDC)        [immutable]
+  ├── vaultManager: IVaultManager     [immutable]
   ├── plans: mapping(uint256 => Plan)
   │     └── Plan
   │           ├── tenorDays, aprBps, earlyWithdrawPenaltyBps, enabled (packed)
@@ -239,13 +246,13 @@ earn 6%
 
 ## Total Slot Count (Optimized)
 
-| Contract | Slots | Notes |
-|----------|-------|-------|
-| MockUSDC | ~3 | ERC20 standard (balances, allowances, totalSupply) |
-| VaultManager | 4 | 3 addresses + 1 bool |
-| SavingCore | 7 | owner, token, vaultManager, planCount, depositCount + 2 mappings |
-| Plan (each) | 3 | Packed small fields + 2 uint256 |
-| Deposit (each) | 3 | 2 uint256 + packed timestamps/rates/status |
+| Contract | Storage Slots | Immutables | Notes |
+|----------|---------------|------------|-------|
+| MockUSDC | ~3 | — | ERC20 standard (balances, allowances, totalSupply) |
+| VaultManager | 5 | 1 (`usdc`) | owner, status, paused, savingCore, feeReceiver |
+| SavingCore | 4 | 2 (`usdc`, `vaultManager`) | deposits, nextDepositId, plans, nextPlanId |
+| Plan (each) | 3 | — | Packed small fields + 2 uint256 |
+| Deposit (each) | 3 | — | 2 uint256 + packed timestamps/rates/status |
 
 ## Gas Savings from Packing
 
@@ -278,7 +285,7 @@ earn 6%
 # Deployment Considerations
 
 1. **Storage gaps:** Use `uint256[50] private __gap` in contracts for upgradeability.
-2. **Immutable variables:** `_token` and `_vaultManager` are immutable (no storage cost after deployment).
+2. **Immutable variables:** `usdc` and `vaultManager` are immutable (no storage cost after deployment — stored in bytecode).
 3. **Mapping initialization:** Mappings start empty; no initialization cost.
 4. **Struct alignment:** Solidity packs structs sequentially; reordering fields changes storage layout.
 
