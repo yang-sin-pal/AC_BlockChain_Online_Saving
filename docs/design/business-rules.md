@@ -57,20 +57,20 @@ Every business rule should have at least one corresponding test case.
 
 | Rule | Status | Code | Search |
 |------|--------|------|--------|
-| BR-01 | ☐ | | |
-| BR-02 | ☐ | | |
-| BR-03 | ☑ | `VaultManager.sol:37,45,53,59,64` | `onlyOwner` |
-| BR-04 | ☐ | | |
-| BR-05 | ☐ | | |
+| BR-01 | ☑ | `SavingCore.sol:115-118` | `minDeposit`, `maxDeposit` checks in `openDeposit` |
+| BR-02 | ☑ | `SavingCore.sol:113` | `plan.enabled` check in `openDeposit` |
+| BR-03 | ☑ | `VaultManager.sol:36,43,51,59,65,70` `SavingCore.sol:54,75,84,92` | `onlyOwner` |
+| BR-04 | ☑ | `SavingCore.sol:129-130` | `aprBpsAtOpen`, `penaltyBpsAtOpen` snapshot in `openDeposit` |
+| BR-05 | ☑ | `SavingCore.sol:135` | `_safeMint` in `openDeposit` |
 | BR-06 | ☐ | | |
 | BR-07 | ☐ | | |
 | BR-08 | ☐ | | |
 | BR-09 | ☐ | | |
 | BR-10 | ☐ | | |
 | BR-11 | ☐ | | |
-| BR-12 | ☐ | | |
+| BR-12 | ☑ | `SavingCore.sol:107` | `nonReentrant` on `openDeposit` |
 | BR-13 | ☐ | | |
 | BR-14 | ☐ | | |
 | BR-15 | ☐ | | |
-| BR-16 | ☑ | `VaultManager.sol:45,59` | `whenNotPaused` |
+| BR-16 | ☑ | `VaultManager.sol:51` | `whenNotPaused` on `withdrawVault` |
 | BR-17 | ☐ | | |
