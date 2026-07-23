@@ -45,6 +45,4 @@ interface IVaultManager {
     event VaultWithdrawn(address indexed to, uint256 amount);
     event FeeReceiverUpdated(address indexed newReceiver);
     event InterestPaid(address indexed to, uint256 amount);
-    event Paused(address indexed account);
-    event Unpaused(address indexed account);
 }
