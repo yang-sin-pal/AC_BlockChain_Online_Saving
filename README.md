@@ -133,15 +133,25 @@ Contract APIs are documented in:
 
 # 8. Design Decisions
 
-This section will be completed during the implementation phase.
+## Q4 — Rounding Dust
 
-- [ ] Transferable certificate
-- [ ] Empty vault
-- [ ] Dead bot
-- [ ] Rounding dust
-- [ ] Boundary times
-- [ ] Disabled plan with active deposits
-- [ ] Attack thinking
+Interest is calculated via integer division:
+`(principal * aprBps * tenorDays) / (365 * 10_000)`.
+Solidity truncates toward zero, so the user receives the slightly smaller
+(truncated) interest. The leftover "dust" stays in the vault — it cannot
+cause a revert or an incorrect balance. Verified by test #8 in
+`withdrawAtMaturity`: an odd principal (10,000,001 units) produces
+truncated interest, and the vault retains the 1-unit dust.
+
+## Q5 — Boundary Operators (maturityAt)
+
+The withdrawal check uses `block.timestamp < deposit.maturityAt` to revert
+("not yet mature"). This means at the exact `maturityAt` second, the
+condition is false and withdrawal is allowed — the `>=` semantics. This is
+justified because at the precise second the term ends, the user has fulfilled
+the contract and should receive principal + interest without penalty.
+Verified by test #1 in `withdrawAtMaturity`: `evm_setNextBlockTimestamp`
+set to exactly `maturityAt`, withdrawal succeeds.
 
 ---
 

@@ -62,15 +62,15 @@ Every business rule should have at least one corresponding test case.
 | BR-03 | ☑ | `VaultManager.sol:36,43,51,59,65,70` `SavingCore.sol:54,75,84,92` | `onlyOwner` |
 | BR-04 | ☑ | `SavingCore.sol:129-130` | `aprBpsAtOpen`, `penaltyBpsAtOpen` snapshot in `openDeposit` |
 | BR-05 | ☑ | `SavingCore.sol:135` | `_safeMint` in `openDeposit` |
-| BR-06 | ☐ | | |
-| BR-07 | ☐ | | |
-| BR-08 | ☐ | | |
-| BR-09 | ☐ | | |
-| BR-10 | ☐ | | |
+| BR-06 | ☑ | `SavingCore.sol:150,180` | `ownerOf(depositId) == msg.sender` in withdrawAtMaturity, earlyWithdraw |
+| BR-07 | ☑ | `SavingCore.sol:151,181` | `deposit.status != Active` check in withdrawAtMaturity, earlyWithdraw |
+| BR-08 | ☑ | `SavingCore.sol:185-186,195` | Penalty calc + interest=0 in earlyWithdraw |
+| BR-09 | ☑ | `InterestLib.sol:20`, `SavingCore.sol:157-161` | `calculateInterest` in withdrawAtMaturity |
+| BR-10 | ☑ | `VaultManager.sol:77-79` | `payInterest` reverts on insufficient vault balance |
 | BR-11 | ☐ | | |
 | BR-12 | ☑ | `SavingCore.sol:107` | `nonReentrant` on `openDeposit` |
 | BR-13 | ☐ | | |
 | BR-14 | ☐ | | |
 | BR-15 | ☐ | | |
 | BR-16 | ☑ | `VaultManager.sol:51` | `whenNotPaused` on `withdrawVault` |
-| BR-17 | ☐ | | |
+| BR-17 | ☑ | `SavingCore.sol:182,193` | `feeReceiver` check + `safeTransfer` penalty in earlyWithdraw |
