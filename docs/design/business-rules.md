@@ -55,22 +55,22 @@ Every business rule should have at least one corresponding test case.
 
 # Implementation Checklist
 
-| Rule | Status |
-|------|--------|
-| BR-01 | ☐ |
-| BR-02 | ☐ |
-| BR-03 | ☑ |
-| BR-04 | ☐ |
-| BR-05 | ☐ |
-| BR-06 | ☐ |
-| BR-07 | ☐ |
-| BR-08 | ☐ |
-| BR-09 | ☐ |
-| BR-10 | ☐ |
-| BR-11 | ☐ |
-| BR-12 | ☐ |
-| BR-13 | ☐ |
-| BR-14 | ☐ |
-| BR-15 | ☐ |
-| BR-16 | ☑ |
-| BR-17 | ☐ |
+| Rule | Status | Code | Search |
+|------|--------|------|--------|
+| BR-01 | ☐ | | |
+| BR-02 | ☐ | | |
+| BR-03 | ☑ | `VaultManager.sol:37,45,53,59,64` | `onlyOwner` |
+| BR-04 | ☐ | | |
+| BR-05 | ☐ | | |
+| BR-06 | ☐ | | |
+| BR-07 | ☐ | | |
+| BR-08 | ☐ | | |
+| BR-09 | ☐ | | |
+| BR-10 | ☐ | | |
+| BR-11 | ☐ | | |
+| BR-12 | ☐ | | |
+| BR-13 | ☐ | | |
+| BR-14 | ☐ | | |
+| BR-15 | ☐ | | |
+| BR-16 | ☑ | `VaultManager.sol:45,59` | `whenNotPaused` |
+| BR-17 | ☐ | | |
