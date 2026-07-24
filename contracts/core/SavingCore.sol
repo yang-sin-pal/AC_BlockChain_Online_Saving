@@ -219,13 +219,60 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         emit Events.Withdrawn(depositId, msg.sender, principal, 0, true);
     }
 
-    function renewDeposit(uint256 /*depositId*/, uint256 /*newPlanId*/)
+    /// @notice Manually renews a matured deposit into a new plan.
+    /// @dev Only callable by the NFT owner. Interest is compounded from the vault
+    ///      into the new deposit. The new plan's rate and tenor apply.
+    /// @param depositId ID of the old deposit.
+    /// @param newPlanId ID of the new plan to renew into.
+    /// @return newDepositId ID of the newly minted deposit.
+    function renewDeposit(uint256 depositId, uint256 newPlanId)
         external
-        pure
+        nonReentrant
         override
         returns (uint256)
     {
-        revert("TODO: implement Day 4");
+        Deposit storage oldDeposit = deposits[depositId];
+
+        // Only NFT owner can renew (BR-06)
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (oldDeposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        // Same >= boundary as withdrawAtMaturity (Design Q5)
+        if (block.timestamp < oldDeposit.maturityAt) revert SavingCore_NotYetMature();
+
+        // New plan validation
+        if (newPlanId >= nextPlanId) revert SavingCore_PlanNotFound();
+        if (!plans[newPlanId].enabled) revert SavingCore_PlanNotEnabled();
+
+        // Interest uses snapshotted APR from old deposit (BR-04)
+        uint32 oldTenorDays = plans[oldDeposit.planId].tenorDays;
+        uint256 interest = InterestLib.calculateInterest(
+            oldDeposit.principal,
+            oldDeposit.aprBpsAtOpen,
+            oldTenorDays
+        );
+
+        // Compound: new principal = old principal + interest
+        uint256 newPrincipal = oldDeposit.principal + interest;
+
+        // CEI: update old deposit status BEFORE external calls
+        oldDeposit.status = Status.ManualRenewed;
+
+        // Vault pays interest to SavingCore (compound — tokens stay in SavingCore)
+        vaultManager.payInterest(address(this), interest);
+
+        // Mint new deposit with NEW plan's parameters
+        Plan storage newPlan = plans[newPlanId];
+        uint256 newDepositId = _createDeposit(
+            newPlanId,
+            newPrincipal,
+            newPlan.aprBps,
+            newPlan.earlyWithdrawPenaltyBps,
+            newPlan.tenorDays
+        );
+
+        emit Events.Renewed(depositId, newDepositId, newPrincipal, newPlanId);
+
+        return newDepositId;
     }
 
     /// @notice Auto-renews a matured deposit after the grace period has elapsed.
