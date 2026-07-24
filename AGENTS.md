@@ -11,19 +11,31 @@ npx hardhat coverage     # Run coverage report
 
 **`npm test` is a placeholder** (`echo "Error: no test specified"`). Always use `npx hardhat test` directly. No lint, typecheck, or formatter is configured.
 
+## Dev Workflow
+
+**TDD is mandatory** — every feature follows RED → GREEN → REFACTOR per `PLAN.md`.
+
+1. **RED** — write failing tests first based on `docs/project/assignment.md`
+2. **GREEN** — write minimum Solidity to pass those tests
+3. **REFACTOR** — clean up, add NatSpec; tests must still pass
+
+A function is **not done** until: required test cases exist, every revert branch has a dedicated test, and `npx hardhat coverage` shows >90% for that function.
+
 ## Project Status
 
-**Early stage** — Day 1 of 10 complete. See `PLAN.md` for day-by-day progress.
+**Days 1–4 complete** — 51 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
 
 | Component | Status |
 |-----------|--------|
 | `ISavingCore.sol`, `IVaultManager.sol` | Complete — NatSpec done |
 | `MockUSDC.sol` | Complete — ERC20, 6 decimals, public `mint()` |
-| `SavingCore.sol` | Plan management implemented. `openDeposit`, `withdraw`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit` are stubs (`revert("TODO")`) |
-| `VaultManager.sol` | **Empty file** |
-| `Errors.sol`, `Events.sol`, `InterestLib.sol` | Comment-only placeholders — no actual code |
-| `test/helpers/*.ts` | Placeholder comments only — no real helpers yet |
-| All test files | Empty |
+| `VaultManager.sol` | Complete — fundVault, withdrawVault, setFeeReceiver, pause/unpause, payInterest (19 tests) |
+| `SavingCore.sol` | Plan CRUD + `openDeposit` + `withdrawAtMaturity` + `earlyWithdraw` complete (32 tests). **`renewDeposit` and `autoRenewDeposit` are stubs** (`revert("TODO")`) |
+| `Errors.sol`, `Events.sol` | Complete — all custom errors and events defined |
+| `InterestLib.sol` | Complete — `calculateInterest` pure function |
+| `test/helpers/*.ts` | Complete — `fixtures.ts` (deployAllContracts), `utils.ts` (toUSDC, increaseTime, calculateExpectedInterest), `constants.ts` (personal variant values) |
+| `test/core/*.ts` | Complete — 51 unit tests across SavingCore + VaultManager |
+| `test/integration/*.ts` | Empty files — placeholders for Day 5+ |
 | `scripts/*.ts` | Stub comments only |
 
 ## Architecture
@@ -66,15 +78,15 @@ Full conventions: `docs/project/code-convention.md`
 
 ```
 test/
-├── core/              # Unit tests (SavingCore.test.ts, VaultManager.test.ts)
-├── intergration/      # Integration tests 
-├── mocks/             # MockUSDC.test.ts
-└── helpers/           # fixtures.ts, constants.ts, utils.ts (all stubs currently)
+├── core/              # Unit tests (SavingCore.test.ts 618 lines, VaultManager.test.ts 254 lines)
+├── integration/       # Empty placeholders — populate in Days 5+
+├── mocks/             # MockUSDC.test.ts — empty
+└── helpers/           # fixtures.ts, utils.ts, constants.ts — real implementations, import from here
 ```
 
-**Test standard**: `docs/project/test-standard.md` — every function needs boundary cases proven (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
-
-**Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17), each with implementation and verification strategy.
+- **Use `test/helpers/`** — `deployAllContractsFixture`, `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`, personal variant constants
+- **Test standard**: `docs/project/test-standard.md` — every function needs boundary cases (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
+- **Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17), each with implementation and verification strategy.
 
 ## Docs
 
@@ -84,7 +96,7 @@ docs/
 ├── design/           # business-rules.md, contract-api.md, access-control.md, system-architecture.md, storage-layout.md
 ├── diagrams/         # sequence-diagram.md, activity-diagram.md, usecase-diagram.md
 ├── project/          # assignment.md, code-convention.md, test-standard.md
-└── reports/          # Day1-Report.md
+└── reports/          # Day1-Report.md, Day3-Report.md, Day4-Report.md
 ```
 
 ## Gotchas
@@ -93,3 +105,5 @@ docs/
 - No `.env` committed, no network config — Hardhat local chain only
 - `typechain-types/` is gitignored — regenerate with `npx hardhat compile`
 - OZ v5: `Ownable2Step` constructor requires `Ownable(msg.sender)`, not `Ownable()`
+- `renewDeposit` and `autoRenewDeposit` use `revert("TODO")` stubs — not yet using custom errors (convention violation, temporary)
+- Test fixtures use `loadFixture()` from hardhat-network-helpers — each test gets a fresh snapshot, no shared state between tests
