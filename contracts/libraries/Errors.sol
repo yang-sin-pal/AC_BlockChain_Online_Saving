@@ -18,3 +18,4 @@ error SavingCore_InvalidTenor();
 error SavingCore_InvalidApr();
 error SavingCore_InvalidDepositRange();
 error SavingCore_NotOwner();
+error SavingCore_GracePeriodNotElapsed();
