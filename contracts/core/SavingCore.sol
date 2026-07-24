@@ -97,6 +97,42 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         emit Events.PlanDisabled(planId);
     }
 
+    // ---------- Internal helpers ----------
+
+    /// @notice Creates a deposit record and mints the NFT certificate.
+    /// @dev Shared by openDeposit, renewDeposit, and autoRenewDeposit.
+    ///      Does NOT handle token transfers — caller is responsible for funding.
+    /// @param planId ID of the plan this deposit follows.
+    /// @param principal Deposit amount in USDC units.
+    /// @param aprBps Annual rate to snapshot (from plan or old deposit).
+    /// @param penaltyBps Penalty rate to snapshot (from plan or old deposit).
+    /// @param tenorDays Term length in days.
+    /// @return depositId ID of the newly created deposit.
+    function _createDeposit(
+        uint256 planId,
+        uint256 principal,
+        uint16 aprBps,
+        uint16 penaltyBps,
+        uint32 tenorDays
+    ) internal returns (uint256) {
+        uint256 depositId = nextDepositId++;
+        uint64 start_ = uint64(block.timestamp);
+        uint64 maturity_ = uint64(block.timestamp + uint256(tenorDays) * 86400);
+
+        deposits[depositId] = Deposit({
+            planId: planId,
+            principal: principal,
+            startAt: start_,
+            maturityAt: maturity_,
+            aprBpsAtOpen: aprBps,
+            penaltyBpsAtOpen: penaltyBps,
+            status: Status.Active
+        });
+
+        _safeMint(msg.sender, depositId);
+        return depositId;
+    }
+
     // ---------- User functions ----------
 
     /// @notice Opens a new term deposit for the given plan.
@@ -119,23 +155,10 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         if (plan.maxDeposit != 0 && amount > plan.maxDeposit)
             revert SavingCore_DepositAboveMax();
 
-        uint256 depositId = nextDepositId++;
-        uint64 start_ = uint64(block.timestamp);
-        uint64 maturity_ = uint64(block.timestamp + uint256(plan.tenorDays) * 86400);
-
-        deposits[depositId] = Deposit({
-            planId: planId,
-            principal: amount,
-            startAt: start_,
-            maturityAt: maturity_,
-            aprBpsAtOpen: plan.aprBps,
-            penaltyBpsAtOpen: plan.earlyWithdrawPenaltyBps,
-            status: Status.Active
-        });
-
         usdc.safeTransferFrom(msg.sender, address(this), amount);
-        _safeMint(msg.sender, depositId);
+        uint256 depositId = _createDeposit(planId, amount, plan.aprBps, plan.earlyWithdrawPenaltyBps, plan.tenorDays);
 
+        uint256 maturity_ = uint256(block.timestamp) + uint256(plan.tenorDays) * 86400;
         emit Events.DepositOpened(depositId, msg.sender, planId, amount, maturity_, plan.aprBps);
 
         return depositId;
@@ -238,21 +261,13 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         vaultManager.payInterest(address(this), interest);
 
         // Mint new deposit with same plan (same tenor + locked APR)
-        uint256 newDepositId = nextDepositId++;
-        uint64 newStart = uint64(block.timestamp);
-        uint64 newMaturity = uint64(block.timestamp + uint256(oldTenorDays) * 86400);
-
-        deposits[newDepositId] = Deposit({
-            planId: oldDeposit.planId,
-            principal: newPrincipal,
-            startAt: newStart,
-            maturityAt: newMaturity,
-            aprBpsAtOpen: oldDeposit.aprBpsAtOpen,
-            penaltyBpsAtOpen: oldDeposit.penaltyBpsAtOpen,
-            status: Status.Active
-        });
-
-        _safeMint(msg.sender, newDepositId);
+        uint256 newDepositId = _createDeposit(
+            oldDeposit.planId,
+            newPrincipal,
+            oldDeposit.aprBpsAtOpen,
+            oldDeposit.penaltyBpsAtOpen,
+            oldTenorDays
+        );
 
         emit Events.Renewed(depositId, newDepositId, newPrincipal, oldDeposit.planId);
 
