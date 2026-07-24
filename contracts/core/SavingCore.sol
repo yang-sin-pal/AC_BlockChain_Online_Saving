@@ -20,6 +20,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
 
     IERC20 public immutable usdc;
     IVaultManager public immutable vaultManager;
+    uint256 public constant personalGracePeriod = 4; // days — personal variant (ID ending 38)
 
     // depositId => Deposit
     mapping(uint256 => Deposit) public deposits;
@@ -204,7 +205,57 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         revert("TODO: implement Day 4");
     }
 
-    function autoRenewDeposit(uint256 /*depositId*/) external pure override returns (uint256) {
-        revert("TODO: implement Day 4");
+    /// @notice Auto-renews a matured deposit after the grace period has elapsed.
+    /// @dev Can be called by anyone (bot or user). Interest is compounded from the vault
+    ///      into the new deposit. APR is locked to the original aprBpsAtOpen (BR-15).
+    /// @param depositId ID of the deposit to auto-renew.
+    /// @return newDepositId ID of the newly minted deposit.
+    function autoRenewDeposit(uint256 depositId) external nonReentrant override returns (uint256) {
+        Deposit storage oldDeposit = deposits[depositId];
+
+        // No owner check — anyone can trigger auto-renew (§3.5: "A bot calls this")
+        if (oldDeposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+
+        // Grace period: maturityAt + 4 days (personal variant)
+        uint256 gracePeriodEnd = uint256(oldDeposit.maturityAt) + uint256(personalGracePeriod) * 86400;
+        if (block.timestamp < gracePeriodEnd) revert SavingCore_GracePeriodNotElapsed();
+
+        // Interest uses snapshotted APR from old deposit (BR-15) — NOT current plan APR
+        uint32 oldTenorDays = plans[oldDeposit.planId].tenorDays;
+        uint256 interest = InterestLib.calculateInterest(
+            oldDeposit.principal,
+            oldDeposit.aprBpsAtOpen,
+            oldTenorDays
+        );
+
+        // Compound: new principal = old principal + interest
+        uint256 newPrincipal = oldDeposit.principal + interest;
+
+        // CEI: update old deposit status BEFORE external calls
+        oldDeposit.status = Status.AutoRenewed;
+
+        // Vault pays interest to SavingCore (compound — tokens stay in SavingCore)
+        vaultManager.payInterest(address(this), interest);
+
+        // Mint new deposit with same plan (same tenor + locked APR)
+        uint256 newDepositId = nextDepositId++;
+        uint64 newStart = uint64(block.timestamp);
+        uint64 newMaturity = uint64(block.timestamp + uint256(oldTenorDays) * 86400);
+
+        deposits[newDepositId] = Deposit({
+            planId: oldDeposit.planId,
+            principal: newPrincipal,
+            startAt: newStart,
+            maturityAt: newMaturity,
+            aprBpsAtOpen: oldDeposit.aprBpsAtOpen,
+            penaltyBpsAtOpen: oldDeposit.penaltyBpsAtOpen,
+            status: Status.Active
+        });
+
+        _safeMint(msg.sender, newDepositId);
+
+        emit Events.Renewed(depositId, newDepositId, newPrincipal, oldDeposit.planId);
+
+        return newDepositId;
     }
 }
