@@ -133,6 +133,24 @@ Contract APIs are documented in:
 
 # 8. Design Decisions
 
+## Q3 — Dead Bot
+
+The auto-renew bot goes offline for one month. What happens to deposits
+that passed the grace period? Does the user lose anything?
+
+**Answer:** Nothing is lost. Deposits past the grace period remain in
+`Active` status — the principal is still held by SavingCore. The user
+can always call `withdrawAtMaturity` to get principal + interest back,
+or call `renewDeposit` to manually renew into a new plan. The only
+inconvenience is that auto-renew did not happen, so the user missed the
+compounding opportunity during the offline period.
+
+**Protection:** In our implementation, `autoRenewDeposit` has no owner
+check (anyone can call it). So even if the original bot is down, another
+bot or the user themselves can trigger auto-renew. The deposit is never
+"stuck." Verified by test #1 in `autoRenewDeposit`: any address can
+call the function and the deposit renews successfully.
+
 ## Q4 — Rounding Dust
 
 Interest is calculated via integer division:
@@ -152,6 +170,33 @@ justified because at the precise second the term ends, the user has fulfilled
 the contract and should receive principal + interest without penalty.
 Verified by test #1 in `withdrawAtMaturity`: `evm_setNextBlockTimestamp`
 set to exactly `maturityAt`, withdrawal succeeds.
+
+## Q6 — Disabled Plan with Active Deposits
+
+The admin disables a plan while many deposits from that plan are still
+active. What can those users still do? Can they still manually renew
+INTO the disabled plan?
+
+**Answer:** Users can always `withdrawAtMaturity` and `earlyWithdraw`
+regardless of plan status — these functions only check the deposit's
+status, not the plan's `enabled` flag. This is correct per BR-11:
+"A disabled plan does not affect existing deposits."
+
+For **manual renew** (`renewDeposit`): users CANNOT renew INTO a
+disabled plan. The function checks `plans[newPlanId].enabled` and
+reverts with `PlanNotEnabled` if disabled. This is a deliberate choice —
+disabling a plan means the admin does not want new deposits, and a renew
+creates a new deposit with new parameters. Users can always withdraw at
+maturity and manually open a new deposit into an enabled plan instead.
+Verified by test #9 in `renewDeposit`: disabling the target plan causes
+the revert.
+
+For **auto renew** (`autoRenewDeposit`): auto-renew uses the old plan's
+parameters (same tenor, locked APR). If the old plan is disabled,
+auto-renew still works because it reads parameters from the old deposit's
+snapshot, not from the plan. The user is never penalized for admin actions
+after deposit. Verified by test #3 in `autoRenewDeposit`: updating the
+plan APR does not affect the auto-renewed deposit.
 
 ---
 

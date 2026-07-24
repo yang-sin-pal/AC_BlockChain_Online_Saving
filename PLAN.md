@@ -29,8 +29,9 @@
 | Day 2 (21/7) | **Skipped** | VaultManager.sol empty, openDeposit stub, all tests empty |
 | Day 3 (22/7) | **100% done** | VaultManager (19/19) + openDeposit (10/10) complete. |
 | Day 4 (23/7) | **100% done** | withdrawAtMaturity (12/12) + earlyWithdraw (9/9) + InterestLib. 51 tests total. Q4+Q5 drafted. |
+| Day 5 (24/7) | **100% done** | autoRenewDeposit (9/9) + renewDeposit (10/10) + admin branch tests (8). 78 tests total. Q3+Q6 drafted. |
 
-**Schedule:** Today is 24/7 (Day 5). Days 1-4 complete — 51 tests passing.
+**Schedule:** Today is 24/7 (Day 5). Days 1-5 complete — 78 tests passing.
 
 ---
 
@@ -158,9 +159,9 @@
 | 🟢 GREEN | Implement: check `block.timestamp >= maturityAt + personalGracePeriod`, calculate interest, new principal = old + interest, mint new NFT with same tenor + locked APR, set old status | assignment §3.5 rules |
 | 🔵 REFACTOR | NatSpec, verify Renewed event: oldDepositId, newDepositId, newPrincipal, newPlanId | assignment §5 |
 
-- [ ] **RED:** Write autoRenewDeposit tests — grace period boundary + APR lock proof
-- [ ] **GREEN:** Implement autoRenewDeposit
-- [ ] **BLUE:** Verify event, NatSpec
+- [x] **RED:** Write autoRenewDeposit tests — grace period boundary + APR lock proof
+- [x] **GREEN:** Implement autoRenewDeposit
+- [x] **BLUE:** Verify event, NatSpec
 
 > **Design Q3 (dead bot):** Write answer in README now — what happens if bot goes offline for a month, how to protect user. Ref: assignment §8.2 Q3
 
@@ -172,17 +173,17 @@
 | 🟢 GREEN | Implement: check `block.timestamp >= maturityAt`, calculate interest, new principal, mint new NFT, old status = ManualRenewed | assignment §3.4 |
 | 🔵 REFACTOR | NatSpec, verify Renewed event | assignment §5 |
 
-- [ ] **RED:** Write renewDeposit tests
-- [ ] **GREEN:** Implement renewDeposit
-- [ ] **BLUE:** Verify event, NatSpec
+- [x] **RED:** Write renewDeposit tests
+- [x] **GREEN:** Implement renewDeposit
+- [x] **BLUE:** Verify event, NatSpec
 
 > **Design Q6 (disabled plan with active deposits):** Write answer in README now — can users renew INTO a disabled plan? Justify. Ref: assignment §8.2 Q6
 
 ### End of Day 5 checklist
 
-- [ ] `npx hardhat compile` + `npx hardhat test` — all pass
-- [ ] Design Q3 and Q6 answers written in README
-- [ ] Auto-renew grace period boundary proven with exact-second test
+- [x] `npx hardhat compile` + `npx hardhat test` — all pass
+- [x] Design Q3 and Q6 answers written in README
+- [x] Auto-renew grace period boundary proven with exact-second test
 
 ---
 

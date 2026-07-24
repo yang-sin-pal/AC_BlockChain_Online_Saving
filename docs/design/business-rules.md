@@ -67,10 +67,10 @@ Every business rule should have at least one corresponding test case.
 | BR-08 | ☑ | `SavingCore.sol:185-186,195` | Penalty calc + interest=0 in earlyWithdraw |
 | BR-09 | ☑ | `InterestLib.sol:20`, `SavingCore.sol:157-161` | `calculateInterest` in withdrawAtMaturity |
 | BR-10 | ☑ | `VaultManager.sol:77-79` | `payInterest` reverts on insufficient vault balance |
-| BR-11 | ☐ | | |
+| BR-11 | ☑ | `SavingCore.sol:155,175` | `withdrawAtMaturity`, `earlyWithdraw` do NOT check plan.enabled — existing deposits unaffected |
 | BR-12 | ☑ | `SavingCore.sol:107` | `nonReentrant` on `openDeposit` |
-| BR-13 | ☐ | | |
-| BR-14 | ☐ | | |
-| BR-15 | ☐ | | |
+| BR-13 | ☑ | `SavingCore.sol:228-276` | `renewDeposit`: owner check, maturity check, interest calc, compound, new plan params |
+| BR-14 | ☑ | `SavingCore.sol:289-290` | `autoRenewDeposit`: `block.timestamp < gracePeriodEnd` reverts `GracePeriodNotElapsed` |
+| BR-15 | ☑ | `SavingCore.sol:293-298,307-310` | `autoRenewDeposit`: uses `oldDeposit.aprBpsAtOpen` and old tenor, not current plan |
 | BR-16 | ☑ | `VaultManager.sol:51` | `whenNotPaused` on `withdrawVault` |
 | BR-17 | ☑ | `SavingCore.sol:182,193` | `feeReceiver` check + `safeTransfer` penalty in earlyWithdraw |
