@@ -134,6 +134,69 @@ Contract APIs are documented in:
 
 # 8. Design Decisions
 
+## Q1 — Transferable Certificate
+
+The deposit NFT (ERC721) is transferable by default. If Alice sells her NFT to
+Bob before maturity, **Bob** can withdraw — the contract checks the current
+NFT owner, not the original depositor.
+
+**Exact line:** `SavingCore.sol:174`:
+`if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();`
+
+The `ownerOf` function always returns the current token holder. After Alice
+calls `transferFrom(alice, bob, depositId)`, Bob becomes `ownerOf(depositId)`
+and can call `withdrawAtMaturity`, `earlyWithdraw`, or `renewDeposit`. Alice
+loses all rights — she cannot withdraw, and any attempt reverts.
+
+**Is this dangerous?** This is **intentional and beneficial**. The NFT acts as
+a bearer instrument: transferring the NFT transfers the right to the deposit.
+This enables secondary markets for term deposits — a user can sell a
+high-APR deposit before maturity without breaking the contract. The risk (Alice
+sells then tries to withdraw) is mitigated by the atomicity of OZ ERC721
+`transferFrom`: Bob receives the NFT only after Alice loses it, so there is no
+window for double-claiming.
+
+**Verified by:** test #11 in `withdrawAtMaturity` — a non-NFT-owner calling
+`withdrawAtMaturity` reverts, confirming that only the current `ownerOf`
+holder can act on the deposit.
+
+## Q2 — Empty Vault
+
+At maturity, if the vault has fewer USDC tokens than the interest owed,
+`withdrawAtMaturity` reverts — and the user cannot withdraw **at all**, not
+even their own principal.
+
+**Exact call chain:** `SavingCore.withdrawAtMaturity` (line 192) calls
+`vaultManager.payInterest(msg.sender, interest)`. Inside `VaultManager.payInterest`
+(line 78), `usdc.safeTransfer(to, amount)` attempts to move USDC from the vault
+to the user. If the vault balance is less than `amount`, the ERC20 token reverts
+with `ERC20InsufficientBalance` — a standard OpenZeppelin error, not a custom one.
+
+**Problem for the user:** The principal is held by SavingCore (not the vault),
+so it IS available. But because the vault cannot pay the interest, the entire
+transaction reverts — the user's own money is locked until the admin tops up
+the vault. This is unfair: the user fulfilled the contract, yet cannot access
+their funds due to the bank's failure to fund the vault.
+
+**Our design choice:** **Revert** (base spec). Justification:
+1. Paying principal-only without interest creates accounting complexity — a
+   `pendingInterest` debt must be tracked, claimed, and reconciled (this is
+   exactly the C1 creative challenge).
+2. For v1, revert is simpler and forces the admin to keep the vault funded.
+   The admin is the bank — maintaining sufficient vault balance is their
+   responsibility.
+
+**Alternative (C1 — "Principal is always safe"):** Pay principal immediately
+to the user, record the interest as `pendingInterest`, and let the user claim
+it later when the vault is funded. This protects the user but requires a new
+mapping, a claim function, and a solvency guard to prevent the vault from
+paying out more than it holds.
+
+**Verified by:** tests #6 and #7 in `withdrawAtMaturity`. Test #6 drains the
+vault to 100 units (far less than interest owed) — withdrawal reverts. Test #7
+leaves exactly `interest - 1` unit in the vault — even 1 unit short causes a
+revert, confirming there is no partial-payment fallback.
+
 ## Q3 — Dead Bot
 
 The auto-renew bot goes offline for one month. What happens to deposits
