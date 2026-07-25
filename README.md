@@ -198,6 +198,27 @@ snapshot, not from the plan. The user is never penalized for admin actions
 after deposit. Verified by test #3 in `autoRenewDeposit`: updating the
 plan APR does not affect the auto-renewed deposit.
 
+## Q7 — Attack Thinking (Reentrancy)
+
+**Attack:** A malicious contract receives USDC during a withdrawal and tries to
+call `withdrawAtMaturity` again before the first call completes. If successful,
+it could drain the contract by withdrawing the same deposit multiple times.
+
+**Defense 1 — `nonReentrant` modifier:** Every user-facing function
+(`withdrawAtMaturity`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit`) is
+protected by OpenZeppelin's `ReentrancyGuard`. The `nonReentrant` modifier sets
+a lock (`_status = _ENTERED`) before execution. Any re-entrant call detects the
+lock and reverts with `ReentrancyGuardReentrantCall`. Verified by tests R1–R5
+in `SavingCore.test.ts` and `VaultManager.test.ts`, which deploy
+`ReentrantAttacker.sol` — a malicious contract that attempts re-entry during the
+USDC transfer callback via `ReentrantToken`.
+
+**Defense 2 — Checks-Effects-Interactions (CEI):** State is updated BEFORE
+external calls. In `withdrawAtMaturity` (`SavingCore.sol:188`),
+`deposit.status = Status.Withdrawn` is set before `safeTransfer` at line 191.
+Even without `nonReentrant`, the double-withdraw would be blocked by the
+`AlreadyWithdrawn` check at line 175.
+
 ---
 
 # 9. Security Notes
