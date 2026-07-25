@@ -23,19 +23,14 @@ A function is **not done** until: required test cases exist, every revert branch
 
 ## Project Status
 
-**Days 1–4 complete** — 51 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
+**Days 1–5 complete** — 78 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
 
 | Component | Status |
 |-----------|--------|
-| `ISavingCore.sol`, `IVaultManager.sol` | Complete — NatSpec done |
-| `MockUSDC.sol` | Complete — ERC20, 6 decimals, public `mint()` |
-| `VaultManager.sol` | Complete — fundVault, withdrawVault, setFeeReceiver, pause/unpause, payInterest (19 tests) |
-| `SavingCore.sol` | Plan CRUD + `openDeposit` + `withdrawAtMaturity` + `earlyWithdraw` complete (32 tests). **`renewDeposit` and `autoRenewDeposit` are stubs** (`revert("TODO")`) |
-| `Errors.sol`, `Events.sol` | Complete — all custom errors and events defined |
-| `InterestLib.sol` | Complete — `calculateInterest` pure function |
-| `test/helpers/*.ts` | Complete — `fixtures.ts` (deployAllContracts), `utils.ts` (toUSDC, increaseTime, calculateExpectedInterest), `constants.ts` (personal variant values) |
-| `test/core/*.ts` | Complete — 51 unit tests across SavingCore + VaultManager |
-| `test/integration/*.ts` | Empty files — placeholders for Day 5+ |
+| All `.sol` contracts | Complete — no stubs remain |
+| `test/core/*.ts` | Complete — 78 unit tests (SavingCore 59, VaultManager 19) |
+| `test/integration/*.ts`, `test/mocks/*.ts` | Empty placeholders |
+| `test/helpers/*.ts` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
 | `scripts/*.ts` | Stub comments only |
 
 ## Architecture
@@ -76,28 +71,16 @@ Full conventions: `docs/project/code-convention.md`
 
 ## Test Structure
 
-```
-test/
-├── core/              # Unit tests (SavingCore.test.ts 618 lines, VaultManager.test.ts 254 lines)
-├── integration/       # Empty placeholders — populate in Days 5+
-├── mocks/             # MockUSDC.test.ts — empty
-└── helpers/           # fixtures.ts, utils.ts, constants.ts — real implementations, import from here
-```
-
-- **Use `test/helpers/`** — `deployAllContractsFixture`, `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`, personal variant constants
+- **`test/core/SavingCore.test.ts`** (1041 lines, 59 tests) — openDeposit, admin CRUD, withdrawAtMaturity, earlyWithdraw, autoRenewDeposit, renewDeposit
+- **`test/core/VaultManager.test.ts`** (254 lines, 19 tests) — fundVault, withdrawVault, setFeeReceiver, pause/unpause, payInterest
+- **`test/helpers/`** — `deployAllContractsFixture`, `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`, personal variant constants. **Import from here, not inline.**
+- **`test/integration/`**, **`test/mocks/`** — empty placeholders
 - **Test standard**: `docs/project/test-standard.md` — every function needs boundary cases (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
-- **Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17), each with implementation and verification strategy.
+- **Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17).
 
 ## Docs
 
-```
-docs/
-├── audit/            # audit-notes.md, folder-structure.md
-├── design/           # business-rules.md, contract-api.md, access-control.md, system-architecture.md, storage-layout.md
-├── diagrams/         # sequence-diagram.md, activity-diagram.md, usecase-diagram.md
-├── project/          # assignment.md, code-convention.md, test-standard.md
-└── reports/          # Day1-Report.md, Day3-Report.md, Day4-Report.md
-```
+Key reference docs: `docs/project/assignment.md`, `docs/project/code-convention.md`, `docs/project/test-standard.md`, `docs/design/business-rules.md`, `docs/design/system-architecture.md`. Reports under `docs/reports/progress/` and bug notes under `docs/reports/bugs/`.
 
 ## Gotchas
 
@@ -105,5 +88,4 @@ docs/
 - No `.env` committed, no network config — Hardhat local chain only
 - `typechain-types/` is gitignored — regenerate with `npx hardhat compile`
 - OZ v5: `Ownable2Step` constructor requires `Ownable(msg.sender)`, not `Ownable()`
-- `renewDeposit` and `autoRenewDeposit` use `revert("TODO")` stubs — not yet using custom errors (convention violation, temporary)
 - Test fixtures use `loadFixture()` from hardhat-network-helpers — each test gets a fresh snapshot, no shared state between tests
