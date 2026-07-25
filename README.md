@@ -52,8 +52,9 @@ The project consists of three main contracts.
 
 More details can be found in:
 
-- docs/architecture.md
-- docs/sequence-diagram.md
+- docs/design/system-architecture.md
+- docs/diagrams/sequence-diagram.md
+- docs/diagrams/activity-diagram.md
 
 ---
 
@@ -61,7 +62,7 @@ More details can be found in:
 
 See:
 
-- docs/folder-structure.md
+- docs/audit/folder-structure.md
 
 ---
 
@@ -112,7 +113,7 @@ npx hardhat coverage
 
 The complete business rules are documented in:
 
-- docs/business-rules.md
+- docs/design/business-rules.md
 
 This document defines:
 
@@ -127,7 +128,7 @@ This document defines:
 
 Contract APIs are documented in:
 
-- docs/contract-api.md
+- docs/design/contract-api.md
 
 ---
 

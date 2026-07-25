@@ -30,7 +30,7 @@ If `npx hardhat coverage` shows a branch as covered but no test asserts a **spec
 
 ## 4. Test file structure
 
-Follow the structure already defined in `AGENTS.md` (`test/core/`, `test/intergration/` — note intentional typo, do not rename, `test/mocks/`, `test/helpers/`). Do not invent a different structure.
+Follow the structure already defined in `AGENTS.md` (`test/unit/`, `test/integration/`  `test/helpers/`). Do not invent a different structure.
 
 ## 5. Definition of Done (core, pre-bonus)
 

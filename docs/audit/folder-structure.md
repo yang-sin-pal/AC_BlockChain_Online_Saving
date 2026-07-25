@@ -15,13 +15,15 @@ AC_BlockChain_Online_Saving/
 │   │   ├── ISavingCore.sol
 │   │   └── IVaultManager.sol
 │   │
-│   ├── mocks/
-│   │   └── MockUSDC.sol
+│   ├── libraries/
+│   │   ├── InterestLib.sol
+│   │   ├── Errors.sol
+│   │   └── Events.sol
 │   │
-│   └── libraries/
-│       ├── InterestLib.sol
-│       ├── Errors.sol
-│       └── Events.sol
+│   └── mocks/
+│       ├── MockUSDC.sol
+│       ├── ReentrantAttacker.sol
+│       └── ReentrantToken.sol
 │
 ├── scripts/
 │   ├── deploy.ts
@@ -30,18 +32,31 @@ AC_BlockChain_Online_Saving/
 │
 ├── test/
 │   │
-│   ├── core/
-│   │   ├── SavingCore.test.ts
-│   │   └── VaultManager.test.ts
+│   ├── unit/
+│   │   ├── SavingCore/
+│   │   │   ├── SavingCore.openDeposit.test.ts
+│   │   │   ├── SavingCore.adminFunctions.test.ts
+│   │   │   ├── SavingCore.withdrawAtMaturity.test.ts
+│   │   │   ├── SavingCore.earlyWithdraw.test.ts
+│   │   │   ├── SavingCore.autoRenew.test.ts
+│   │   │   ├── SavingCore.renewDeposit.test.ts
+│   │   │   └── SavingCore.reentrancy.test.ts
+│   │   │
+│   │   └── VaultManager/
+│   │       ├── VaultManager.fundVault.test.ts
+│   │       ├── VaultManager.withdrawVault.test.ts
+│   │       ├── VaultManager.setFeeReceiver.test.ts
+│   │       ├── VaultManager.pause.test.ts
+│   │       ├── VaultManager.payInterest.test.ts
+│   │       ├── VaultManager.setSavingCore.test.ts
+│   │       ├── VaultManager.views.test.ts
+│   │       └── VaultManager.reentrancy.test.ts
 │   │
 │   ├── integration/
 │   │   ├── OpenDeposit.test.ts
 │   │   ├── Withdraw.test.ts
 │   │   ├── Renew.test.ts
 │   │   └── FullFlow.test.ts
-│   │
-│   ├── mocks/
-│   │   └── MockUSDC.test.ts
 │   │
 │   └── helpers/
 │       ├── fixtures.ts
@@ -66,19 +81,27 @@ AC_BlockChain_Online_Saving/
 │   ├── audit/
 │   │   ├── audit-notes.md
 │   │   └── folder-structure.md
-│   └── Reports/
-│       └── Day1-Report.md
-│
-├── ignition/
+│   └── reports/
+│       ├── progress/
+│       │   ├── Day1-Report.md
+│       │   ├── Day3-Report.md
+│       │   ├── Day4-Report.md
+│       │   └── Day5-Report.md
+│       └── bugs/
+│           ├── coverage-bug.md
+│           └── circular-solution.md
 │
 ├── artifacts/
 ├── cache/
 ├── typechain-types/
 │
+├── AGENTS.md
+├── PLAN.md
+├── TODO.md
+├── README.md
 ├── hardhat.config.ts
 ├── package.json
 ├── tsconfig.json
-├── README.md
 └── .gitignore
 ```
 
@@ -104,12 +127,6 @@ Public interfaces shared across contracts.
 - `ISavingCore.sol`
 - `IVaultManager.sol`
 
-### mocks/
-
-Mock contracts for testing.
-
-- `MockUSDC.sol`
-
 ### libraries/
 
 Reusable libraries.
@@ -117,6 +134,14 @@ Reusable libraries.
 - `InterestLib.sol` – Interest calculation.
 - `Errors.sol` – Custom errors.
 - `Events.sol` – Shared events.
+
+### mocks/
+
+Mock and attacker contracts for testing.
+
+- `MockUSDC.sol` – ERC20 token simulating USDC (6 decimals) with open minting.
+- `ReentrantAttacker.sol` – Malicious contract for reentrancy tests.
+- `ReentrantToken.sol` – ERC20 with callback hook for reentrancy tests.
 
 ---
 
@@ -132,27 +157,44 @@ Deployment and initialization scripts.
 
 ## test/
 
-Unit and integration tests.
+Unit & Integration.
 
-### core/
+### unit/
 
-Tests for individual contracts.
+Per-contract unit tests, split by `describe` block.
+
+#### SavingCore/
+
+- `SavingCore.openDeposit.test.ts` – Deposit creation, NFT minting, validation.
+- `SavingCore.adminFunctions.test.ts` – Plan CRUD (create, update, enable, disable).
+- `SavingCore.withdrawAtMaturity.test.ts` – Maturity withdrawal, interest calculation.
+- `SavingCore.earlyWithdraw.test.ts` – Early withdrawal, penalty calculation.
+- `SavingCore.autoRenew.test.ts` – Auto-renew after grace period.
+- `SavingCore.renewDeposit.test.ts` – Manual renewal with new plan.
+- `SavingCore.reentrancy.test.ts` – Reentrancy attack vectors.
+
+#### VaultManager/
+
+- `VaultManager.fundVault.test.ts` – Vault funding.
+- `VaultManager.withdrawVault.test.ts` – Vault withdrawal.
+- `VaultManager.setFeeReceiver.test.ts` – Fee receiver management.
+- `VaultManager.pause.test.ts` – Pause/unpause behavior.
+- `VaultManager.payInterest.test.ts` – Interest payment from vault.
+- `VaultManager.setSavingCore.test.ts` – SavingCore address management.
+- `VaultManager.views.test.ts` – View functions (vaultBalance, feeReceiver).
+- `VaultManager.reentrancy.test.ts` – Reentrancy on withdrawVault.
 
 ### integration/
 
-End-to-end workflow tests.
-
-### mocks/
-
-Tests for mock contracts.
+End-to-end workflow tests (empty placeholders).
 
 ### helpers/
 
-Shared utilities for tests.
+Shared utilities for tests. **Import from here, not inline.**
 
-- `fixtures.ts` – Deploy fixtures.
-- `constants.ts` – Shared constants.
-- `utils.ts` – Helper functions.
+- `fixtures.ts` – Deploy fixtures (`deployAllContractsFixture`, `fixtureWithPlan`, `deployVaultManager`).
+- `constants.ts` – Shared constants (APR, penalty, tenor, etc.).
+- `utils.ts` – Helper functions (`toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`).
 
 ---
 
@@ -193,9 +235,12 @@ Audit and review notes.
 - `audit-notes.md` – Security notes and findings.
 - `folder-structure.md` – Project directory guide.
 
-### Reports/
+### reports/
 
-Daily progress reports.
+Daily progress reports and bug notes.
+
+- `progress/` – Day1, Day3, Day4, Day5 reports.
+- `bugs/` – Coverage bug and circular dependency notes.
 
 ---
 

@@ -23,14 +23,16 @@ A function is **not done** until: required test cases exist, every revert branch
 
 ## Project Status
 
-**Days 1–5 complete** — 78 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
+**Days 1–5 complete** — 88 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
 
 | Component | Status |
 |-----------|--------|
 | All `.sol` contracts | Complete — no stubs remain |
-| `test/core/*.ts` | Complete — 78 unit tests (SavingCore 59, VaultManager 19) |
-| `test/integration/*.ts`, `test/mocks/*.ts` | Empty placeholders |
-| `test/helpers/*.ts` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
+| `test/unit/SavingCore/` | Complete — 7 files, 66 unit tests |
+| `test/unit/VaultManager/` | Complete — 8 files, 22 unit tests |
+| `test/integration/` | Empty placeholders (4 named files) |
+| `test/mocks/MockUSDC.test.ts` | Empty placeholder — MockUSDC is trivial and not required by assignment |
+| `test/helpers/` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
 | `scripts/*.ts` | Stub comments only |
 
 ## Architecture
@@ -71,10 +73,27 @@ Full conventions: `docs/project/code-convention.md`
 
 ## Test Structure
 
-- **`test/core/SavingCore.test.ts`** (1041 lines, 59 tests) — openDeposit, admin CRUD, withdrawAtMaturity, earlyWithdraw, autoRenewDeposit, renewDeposit
-- **`test/core/VaultManager.test.ts`** (254 lines, 19 tests) — fundVault, withdrawVault, setFeeReceiver, pause/unpause, payInterest
-- **`test/helpers/`** — `deployAllContractsFixture`, `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`, personal variant constants. **Import from here, not inline.**
-- **`test/integration/`**, **`test/mocks/`** — empty placeholders
+- **`test/unit/SavingCore/`** — 7 files, one per `describe` block:
+  - `SavingCore.openDeposit.test.ts` (11 tests)
+  - `SavingCore.adminFunctions.test.ts` (11 tests)
+  - `SavingCore.withdrawAtMaturity.test.ts` (12 tests)
+  - `SavingCore.earlyWithdraw.test.ts` (9 tests)
+  - `SavingCore.autoRenew.test.ts` (9 tests)
+  - `SavingCore.renewDeposit.test.ts` (10 tests)
+  - `SavingCore.reentrancy.test.ts` (4 tests)
+- **`test/unit/VaultManager/`** — 8 files, one per `describe` block:
+  - `VaultManager.fundVault.test.ts` (3 tests)
+  - `VaultManager.withdrawVault.test.ts` (4 tests)
+  - `VaultManager.setFeeReceiver.test.ts` (2 tests)
+  - `VaultManager.pause.test.ts` (6 tests)
+  - `VaultManager.payInterest.test.ts` (2 tests)
+  - `VaultManager.setSavingCore.test.ts` (2 tests)
+  - `VaultManager.views.test.ts` (2 tests)
+  - `VaultManager.reentrancy.test.ts` (1 test)
+- **`test/helpers/`** — Shared fixtures and utilities. **Import from here, not inline.**
+  - `fixtures.ts`: `deployAllContractsFixture` (full setup), `fixtureWithPlan` (with default plan), `deployVaultManager` (minimal, no vault funding)
+  - `utils.ts`: `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`
+  - `constants.ts`: `DEFAULT_TENOR`, `DEFAULT_APR`, `PENALTY`, `SECONDS_PER_DAY`, etc.
 - **Test standard**: `docs/project/test-standard.md` — every function needs boundary cases (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
 - **Business rules**: `docs/design/business-rules.md` — 17 rules (BR-01 to BR-17).
 
