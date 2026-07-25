@@ -1,6 +1,7 @@
 ﻿import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { toUSDC } from "./utils";
+import { DEFAULT_TENOR, DEFAULT_APR, PENALTY } from "./constants";
 
 export async function deployAllContracts() {
   const [owner, user] = await ethers.getSigners();
@@ -34,4 +35,16 @@ export async function deployAllContracts() {
 
 export async function deployAllContractsFixture() {
   return loadFixture(deployAllContracts);
+}
+
+/** Creates a default plan (planId 0) and returns the base fixture for convenience. */
+export async function fixtureWithPlan() {
+  const base = await loadFixture(deployAllContracts);
+  const { savingCore, owner } = base;
+
+  await savingCore
+    .connect(owner)
+    .createPlan(DEFAULT_TENOR, DEFAULT_APR, toUSDC(100), toUSDC(100_000), PENALTY);
+
+  return base;
 }
