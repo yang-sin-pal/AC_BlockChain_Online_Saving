@@ -5,7 +5,7 @@ import { fixtureWithPlan } from "../../helpers/fixtures";
 import { toUSDC, increaseTime, calculateExpectedInterest } from "../../helpers/utils";
 import { DEFAULT_TENOR, DEFAULT_APR, PENALTY, SECONDS_PER_DAY } from "../../helpers/constants";
 
-describe("SavingCore — claimInterestOnly", function () {
+describe("SavingCore — claimInterest", function () {
   async function fixtureWithDeposit() {
     const base = await loadFixture(fixtureWithPlan);
     const { savingCore, user } = base;
@@ -16,9 +16,9 @@ describe("SavingCore — claimInterestOnly", function () {
     return { ...base, depositId: 0n, amount, openTimestamp: block!.timestamp };
   }
 
-  // ─── 1. claimInterestOnly: vault funded → pays interest, principal stays ──
+  // ─── 1. claimInterest: vault funded → pays interest, principal stays ──
 
-  it("#1 — claimInterestOnly: pays interest from vault, principal stays in SavingCore", async function () {
+  it("#1 — claimInterest: pays interest from vault, principal stays in SavingCore", async function () {
     const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
     const deposit = await savingCore.deposits(0);
@@ -30,7 +30,7 @@ describe("SavingCore — claimInterestOnly", function () {
     const userBalBefore = await usdc.balanceOf(await user.getAddress());
     const savingCoreBalBefore = await usdc.balanceOf(await savingCore.getAddress());
 
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     const userBalAfter = await usdc.balanceOf(await user.getAddress());
     const vaultBalAfter = await vaultManager.vaultBalance();
@@ -42,68 +42,68 @@ describe("SavingCore — claimInterestOnly", function () {
     expect(savingCoreBalAfter).to.equal(savingCoreBalBefore);
   });
 
-  // ─── 2. claimInterestOnly: deposit status becomes InterestClaimed ───────
+  // ─── 2. claimInterest: deposit status becomes InterestClaimed ───────
 
-  it("#2 — claimInterestOnly: sets status to InterestClaimed (3)", async function () {
+  it("#2 — claimInterest: sets status to InterestClaimed (3)", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     const deposit = await savingCore.deposits(0);
     expect(deposit.status).to.equal(3); // Status.InterestClaimed
   });
 
-  // ─── 3. claimInterestOnly: NFT stays with caller (not burned) ──────────
+  // ─── 3. claimInterest: NFT stays with caller (not burned) ──────────
 
-  it("#3 — claimInterestOnly: NFT stays with caller", async function () {
+  it("#3 — claimInterest: NFT stays with caller", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     expect(await savingCore.ownerOf(0)).to.equal(await user.getAddress());
   });
 
-  // ─── 4. claimInterestOnly: double claim → revert ───────────────────────
+  // ─── 4. claimInterest: double claim → revert ───────────────────────
 
-  it("#4 — claimInterestOnly: double claim → reverts AlreadyWithdrawn", async function () {
+  it("#4 — claimInterest: double claim → reverts NoPendingInterest", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     await expect(
-      savingCore.connect(user).claimInterestOnly(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+      savingCore.connect(user).claimInterest(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NoPendingInterest");
   });
 
-  // ─── 5. claimInterestOnly: not mature → revert ─────────────────────────
+  // ─── 5. claimInterest: not mature → revert ─────────────────────────
 
-  it("#5 — claimInterestOnly: not mature → reverts NotYetMature", async function () {
+  it("#5 — claimInterest: not mature → reverts NotYetMature", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await expect(
-      savingCore.connect(user).claimInterestOnly(0),
+      savingCore.connect(user).claimInterest(0),
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotYetMature");
   });
 
-  // ─── 6. claimInterestOnly: non-owner → revert ──────────────────────────
+  // ─── 6. claimInterest: non-owner → revert ──────────────────────────
 
-  it("#6 — claimInterestOnly by non-owner → reverts NotOwner", async function () {
+  it("#6 — claimInterest by non-owner → reverts NotOwner", async function () {
     const { savingCore } = await loadFixture(fixtureWithDeposit);
     const [, , other] = await ethers.getSigners();
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 
     await expect(
-      savingCore.connect(other).claimInterestOnly(0),
+      savingCore.connect(other).claimInterest(0),
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotOwner");
   });
 
-  // ─── 7. claimInterestOnly: when paused → succeeds ──────────────────────
+  // ─── 7. claimInterest: when paused → succeeds ──────────────────────
 
-  it("#7 — claimInterestOnly when paused → succeeds", async function () {
+  it("#7 — claimInterest when paused → succeeds", async function () {
     const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
@@ -114,15 +114,15 @@ describe("SavingCore — claimInterestOnly", function () {
     );
     const userBalBefore = await usdc.balanceOf(await user.getAddress());
 
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     const userBalAfter = await usdc.balanceOf(await user.getAddress());
     expect(userBalAfter).to.equal(userBalBefore + expectedInterest);
   });
 
-  // ─── 8. claimInterestOnly: emits InterestClaimed event ─────────────────
+  // ─── 8. claimInterest: emits InterestClaimed event ─────────────────
 
-  it("#8 — claimInterestOnly: emits InterestClaimed event", async function () {
+  it("#8 — claimInterest: emits InterestClaimed event", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
     const deposit = await savingCore.deposits(0);
     const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
@@ -130,17 +130,17 @@ describe("SavingCore — claimInterestOnly", function () {
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 
     await expect(
-      savingCore.connect(user).claimInterestOnly(0),
+      savingCore.connect(user).claimInterest(0),
     ).to.emit(savingCore, "InterestClaimed").withArgs(0, await user.getAddress(), expectedInterest);
   });
 
-  // ─── 9. renewDeposit after claimInterestOnly → principal only (no compound) ─
+  // ─── 9. renewDeposit after claimInterest → principal only (no compound) ─
 
-  it("#9 — renewDeposit after claimInterestOnly → new principal = old principal (no interest)", async function () {
+  it("#9 — renewDeposit after claimInterest → new principal = old principal (no interest)", async function () {
     const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     // Renew into same plan
     const newDepositId = await savingCore.connect(user).renewDeposit.staticCall(0, 0);
@@ -154,16 +154,16 @@ describe("SavingCore — claimInterestOnly", function () {
     // New principal = old principal only (interest was already paid out)
     expect(newDeposit.principal).to.equal(10_000_000_000n); // toUSDC(10_000)
     // Vault balance decreased by 0 (no vault call for InterestClaimed renewal)
-    // Vault still has original 10,000 USDC minus what claimInterestOnly took
+    // Vault still has original 10,000 USDC minus what claimInterest took
   });
 
-  // ─── 10. withdrawAtMaturity after claimInterestOnly → reverts ──────────
+  // ─── 10. withdrawAtMaturity after claimInterest → reverts ──────────
 
-  it("#10 — withdrawAtMaturity after claimInterestOnly → reverts AlreadyWithdrawn", async function () {
+  it("#10 — withdrawAtMaturity after claimInterest → reverts AlreadyWithdrawn", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterestOnly(0);
+    await savingCore.connect(user).claimInterest(0);
 
     await expect(
       savingCore.connect(user).withdrawAtMaturity(0),

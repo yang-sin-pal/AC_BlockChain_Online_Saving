@@ -83,10 +83,6 @@ interface ISavingCore {
     /// @param depositId ID of the withdrawn deposit with pending interest.
     function claimInterest(uint256 depositId) external;
 
-    /// @notice Claims interest only at maturity. Principal stays in SavingCore for renewal.
-    /// @param depositId ID of the matured deposit.
-    function claimInterestOnly(uint256 depositId) external;
-
     /// @notice Burns the deposit NFT certificate.
     /// @param depositId ID of the deposit whose NFT to burn.
     function burn(uint256 depositId) external;

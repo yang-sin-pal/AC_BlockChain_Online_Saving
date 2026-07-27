@@ -253,44 +253,39 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
     }
 
-    /// @notice Claims pending interest from a previous withdrawal where the vault was insufficient.
-    /// @dev The NFT is still owned by the caller (not burned by withdrawAtMaturity or claimPrincipal).
+    /// @notice Claims interest from a deposit.
+    /// @dev Two paths:
+    ///      - Active & mature: pays full interest from vault, sets status to InterestClaimed.
+    ///      - Non-Active (e.g. after claimPrincipal): pays remaining pendingInterest from vault.
     ///      No whenNotPaused — user can claim even when paused.
-    /// @param depositId ID of the withdrawn deposit with pending interest.
+    /// @param depositId ID of the deposit to claim interest from.
     function claimInterest(uint256 depositId) external nonReentrant {
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
-        uint256 amount = pendingInterest[depositId];
-        if (amount == 0) revert SavingCore_NoPendingInterest();
-
-        pendingInterest[depositId] = 0;
-        vaultManager.payInterest(msg.sender, amount);
-
-        emit Events.InterestClaimed(depositId, msg.sender, amount);
-    }
-
-    /// @notice Claims interest only at maturity. Principal stays in SavingCore for renewal.
-    /// @dev For users who want to take profits but keep the principal working.
-    ///      No whenNotPaused — user can claim even when paused.
-    /// @param depositId ID of the matured deposit.
-    function claimInterestOnly(uint256 depositId) external nonReentrant {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
-        if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
-        if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
-        uint256 principal = deposit.principal;
-        uint256 interest = InterestLib.calculateInterest(
-            principal, deposit.aprBpsAtOpen, plans[deposit.planId].tenorDays
-        );
+        uint256 amount;
 
-        // CEI: update state BEFORE external calls
-        deposit.status = Status.InterestClaimed;
+        if (deposit.status == Status.Active) {
+            // Path A: full interest claim at maturity — principal stays in SavingCore
+            if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
-        // Interest from vault — principal stays in SavingCore
-        vaultManager.payInterest(msg.sender, interest);
+            amount = InterestLib.calculateInterest(
+                deposit.principal, deposit.aprBpsAtOpen, plans[deposit.planId].tenorDays
+            );
 
-        emit Events.InterestClaimed(depositId, msg.sender, interest);
+            // CEI: update state BEFORE external calls
+            deposit.status = Status.InterestClaimed;
+        } else {
+            // Path B: pending interest from a previous partial withdrawal (C1)
+            amount = pendingInterest[depositId];
+            if (amount == 0) revert SavingCore_NoPendingInterest();
+            pendingInterest[depositId] = 0;
+        }
+
+        vaultManager.payInterest(msg.sender, amount);
+
+        emit Events.InterestClaimed(depositId, msg.sender, amount);
     }
 
     /// @notice Burns the deposit NFT certificate.
