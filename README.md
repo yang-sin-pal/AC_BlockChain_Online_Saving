@@ -316,12 +316,32 @@ records any unpaid interest as `pendingInterest`. Users call `claimInterest`
 later when the vault is funded. This ensures the user can ALWAYS get their
 principal back, even when the system is paused or the vault is empty.
 
-**Trade-off:** The NFT is the claim token. If the user sells/burns the NFT
-before calling `claimInterest`, the pending interest is lost. The `Withdrawn`
-event always reports the full interest amount; the `pendingInterest` mapping
-tracks what remains unpaid. Verified by 11 tests in `SavingCore.c1.test.ts`,
-including tests #10 and #11 which prove `claimPrincipal` and `claimInterest`
-work while the system is paused.
+**Status tracking:** `claimPrincipal` sets the deposit status to `PrincipalClaimed`
+(2) — distinct from `Withdrawn` (1) — so the system knows the deposit was only
+partially settled. The `InterestClaimed` status (3) is used by `claimInterestOnly`,
+which lets the user take only the interest and keep the principal working.
+
+**Burn guard:** The NFT is the claim token for `pendingInterest`. An `_update`
+override on `SavingCore.sol:46` blocks burning the NFT while `pendingInterest > 0`,
+reverting with `SavingCore_PendingInterestExists`. The public `burn(depositId)`
+function checks that the deposit is not `Active` before burning. This protects
+users who sell the NFT on a secondary market — the buyer can always claim the
+pending interest before burning.
+
+**claimInterestOnly:** A complementary function that pays only interest at maturity
+from the vault, leaving the principal in SavingCore. After calling this, the user
+can still `renewDeposit` — the renewal uses the principal only (no interest
+compounding, since interest was already paid out). This is useful for users who
+want periodic income without breaking the deposit.
+
+**Trade-off:** If the user sells/burns the NFT before calling `claimInterest`, the
+pending interest is lost. The `Withdrawn` event always reports the full interest
+amount; the `pendingInterest` mapping tracks what remains unpaid.
+
+**Verified by:** 14 tests in `SavingCore.c1.test.ts` (principal safe, partial
+vault, pending claim, NFT transfer, burn guard) and 10 tests in
+`SavingCore.interestOnly.test.ts` (interest-only claim, renewal after claim,
+pause behavior).
 
 ---
 
