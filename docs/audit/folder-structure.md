@@ -33,14 +33,17 @@ AC_BlockChain_Online_Saving/
 ├── test/
 │   │
 │   ├── unit/
-│   │   ├── SavingCore/
-│   │   │   ├── SavingCore.openDeposit.test.ts
-│   │   │   ├── SavingCore.adminFunctions.test.ts
-│   │   │   ├── SavingCore.withdrawAtMaturity.test.ts
-│   │   │   ├── SavingCore.earlyWithdraw.test.ts
-│   │   │   ├── SavingCore.autoRenew.test.ts
-│   │   │   ├── SavingCore.renewDeposit.test.ts
-│   │   │   └── SavingCore.reentrancy.test.ts
+    │   │   ├── SavingCore/
+    │   │   │   ├── SavingCore.openDeposit.test.ts
+    │   │   │   ├── SavingCore.adminFunctions.test.ts
+    │   │   │   ├── SavingCore.withdrawAtMaturity.test.ts
+    │   │   │   ├── SavingCore.earlyWithdraw.test.ts
+    │   │   │   ├── SavingCore.autoRenew.test.ts
+    │   │   │   ├── SavingCore.renewDeposit.test.ts
+    │   │   │   ├── SavingCore.c1.test.ts
+    │   │   │   ├── SavingCore.interestClaim.test.ts
+    │   │   │   ├── SavingCore.pause.test.ts
+    │   │   │   └── SavingCore.reentrancy.test.ts
 │   │   │
 │   │   └── VaultManager/
 │   │       ├── VaultManager.fundVault.test.ts
@@ -89,7 +92,9 @@ AC_BlockChain_Online_Saving/
 │       │   └── Day5-Report.md
 │       └── bugs/
 │           ├── coverage-bug.md
-│           └── circular-solution.md
+│           ├── circular-solution.md
+│           ├── PausePatternAnalysis.md
+│           └── state-machine-status.md
 │
 ├── artifacts/
 ├── cache/
@@ -167,10 +172,13 @@ Per-contract unit tests, split by `describe` block.
 
 - `SavingCore.openDeposit.test.ts` – Deposit creation, NFT minting, validation.
 - `SavingCore.adminFunctions.test.ts` – Plan CRUD (create, update, enable, disable).
-- `SavingCore.withdrawAtMaturity.test.ts` – Maturity withdrawal, interest calculation.
+- `SavingCore.withdrawAtMaturity.test.ts` – Maturity withdrawal, interest calculation, UseClaimPrincipal/UseClaimInterest reverts.
 - `SavingCore.earlyWithdraw.test.ts` – Early withdrawal, penalty calculation.
-- `SavingCore.autoRenew.test.ts` – Auto-renew after grace period.
-- `SavingCore.renewDeposit.test.ts` – Manual renewal with new plan.
+- `SavingCore.autoRenew.test.ts` – Auto-renew after grace period, claimPrincipal/claimInterest partial claim renewal.
+- `SavingCore.renewDeposit.test.ts` – Manual renewal with new plan, claimPrincipal/claimInterest partial claim renewal.
+- `SavingCore.c1.test.ts` – C1: principal is always safe. claimPrincipal (no vault), pendingInterest, partial vault payment, burn guards.
+- `SavingCore.interestClaim.test.ts` – claimInterest Path A (Active) and Path B (PrincipalClaimed), partial vault payment, retry flow.
+- `SavingCore.pause.test.ts` – Pause/unpause behavior across all functions.
 - `SavingCore.reentrancy.test.ts` – Reentrancy attack vectors.
 
 #### VaultManager/
@@ -240,7 +248,7 @@ Audit and review notes.
 Daily progress reports and bug notes.
 
 - `progress/` – Day1, Day3, Day4, Day5 reports.
-- `bugs/` – Coverage bug and circular dependency notes.
+- `bugs/` – Coverage bug, circular dependency, pause pattern analysis, and state machine status docs.
 
 ---
 

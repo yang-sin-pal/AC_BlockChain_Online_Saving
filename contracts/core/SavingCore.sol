@@ -119,7 +119,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         _unpause();
     }
 
-    // ---------- Internal helpers ----------
+    // ---------- Internal: deposit factory ----------
 
     /// @notice Creates a deposit record and mints the NFT certificate.
     /// @dev Shared by openDeposit, renewDeposit, and autoRenewDeposit.
