@@ -400,8 +400,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     }
 
     /// @notice Auto-renews a matured deposit after the grace period has elapsed.
-    /// @dev Can be called by anyone (bot or user). Interest is compounded from the vault
-    ///      into the new deposit. APR is locked to the original aprBpsAtOpen (BR-15).
+    /// @dev Can be called by anyone (bot or user). If interest has already been claimed,
+    ///      renews with principal only (no vault call). Otherwise compounds principal + interest.
+    ///      APR is locked to the original aprBpsAtOpen (BR-15).
     /// @param depositId ID of the deposit to auto-renew.
     /// @return newDepositId ID of the newly minted deposit.
     function autoRenewDeposit(uint256 depositId) external nonReentrant whenNotPaused override returns (uint256) {
@@ -416,15 +417,19 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
         // Interest uses snapshotted APR from old deposit (BR-15) — NOT current plan APR
         uint256 interest = _calcInterest(depositId);
+        uint256 newPrincipal;
 
-        // Compound: new principal = old principal + interest
-        uint256 newPrincipal = oldDeposit.principal + interest;
+        if (oldDeposit.interestClaimed) {
+            // Interest already paid out — principal stays in SavingCore, no vault call
+            newPrincipal = oldDeposit.principal;
+        } else {
+            // Active: compound principal + interest from vault
+            newPrincipal = oldDeposit.principal + interest;
+            vaultManager.payInterest(address(this), interest);
+        }
 
         // CEI: update old deposit status BEFORE external calls
         _settlePrincipal(depositId, Status.AutoRenewed);
-
-        // Vault pays interest to SavingCore (compound — tokens stay in SavingCore)
-        vaultManager.payInterest(address(this), interest);
 
         // Mint new deposit with same plan (same tenor + locked APR)
         uint256 newDepositId = _createDeposit(

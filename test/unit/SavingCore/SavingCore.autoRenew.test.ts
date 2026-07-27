@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { fixtureWithPlan } from "../../helpers/fixtures";
-import { toUSDC, calculateExpectedInterest } from "../../helpers/utils";
+import { toUSDC, increaseTime, calculateExpectedInterest } from "../../helpers/utils";
 import {
   DEFAULT_TENOR,
   DEFAULT_APR,
@@ -169,5 +169,32 @@ describe("SavingCore — autoRenewDeposit", function () {
     expect(event!.args.newDepositId).to.equal(1);
     expect(event!.args.newPrincipal).to.equal(expectedNewPrincipal);
     expect(event!.args.newPlanId).to.equal(0); // same plan
+  });
+
+  // ─── 10. No double interest after claimInterest ───────────────
+
+  it("#10 — autoRenewDeposit after claimInterest → new principal = old principal only (no double interest)", async function () {
+    const { savingCore, user, vaultManager } = await loadFixture(fixtureWithMaturedDepositPastGrace);
+
+    // First: user claims interest at maturity (interestClaimed=true, status stays Active)
+    await savingCore.connect(user).claimInterest(0);
+
+    // Verify interestClaimed is set
+    const depositBefore = await savingCore.deposits(0);
+    expect(depositBefore.interestClaimed).to.be.true;
+    expect(depositBefore.status).to.equal(0); // still Active
+
+    // Now advance past grace period and auto-renew
+    await increaseTime(GRACE_PERIOD * SECONDS_PER_DAY);
+    const vaultBalBefore = await vaultManager.vaultBalance();
+    await savingCore.connect(user).autoRenewDeposit(0);
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    // Vault balance unchanged — no payInterest called
+    expect(vaultBalAfter).to.equal(vaultBalBefore);
+
+    // New deposit principal = old principal only (no interest compounded)
+    const newDeposit = await savingCore.deposits(1);
+    expect(newDeposit.principal).to.equal(depositBefore.principal);
   });
 });
