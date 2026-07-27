@@ -44,25 +44,25 @@ This document describes the activity diagrams for the **Blockchain-Based Online 
 ```mermaid
 flowchart TD
     subgraph User
-        A1([Start]) --> A2[Approve MockUSDC spending\nfor SavingCore]
-        A2 --> A3[Call openDeposit\nplanId, amount]
+        A1([Start]) --> A2[Approve MockUSDC spending<br/>for SavingCore]
+        A2 --> A3[Call openDeposit<br/>planId, amount]
     end
 
     subgraph SavingCore
         A4{Plan exists?}
         A5{Plan enabled?}
-        A6{amount > 0?}
-        A7{amount >= minDeposit?}
-        A8{amount <= maxDeposit?}
-        A9[Transfer tokens from User\nto SavingCore]
-        A10[Snapshot aprBps &\npenaltyBps at open]
-        A11[Set status = Active,\nmaturityAt = now + tenorDays * 86400]
-        A12[Mint ERC721 NFT\nto User]
+        A6{"amount &gt; 0?"}
+        A7{"amount &gt;= minDeposit?"}
+        A8{"amount &lt;= maxDeposit?"}
+        A9[Transfer tokens from User<br/>to SavingCore]
+        A10[Snapshot aprBps &<br/>penaltyBps at open]
+        A11[Set status = Active,<br/>maturityAt = now + tenorDays * 86400]
+        A12[Mint ERC721 NFT<br/>to User]
         A13[Emit DepositOpened]
     end
 
     subgraph MockUSDC
-        A14[Transfer tokens from\nUser to SavingCore]
+        A14[Transfer tokens from<br/>User to SavingCore]
     end
 
     A3 --> A4
@@ -91,21 +91,21 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        B1([Start]) --> B2[Call withdrawAtMaturity\ndepositId]
+        B1([Start]) --> B2[Call withdrawAtMaturity<br/>depositId]
     end
 
     subgraph SavingCore
         B3{Paused?}
         B4{Status?}
-        B5{now >= maturityAt?}
-        B6[Calculate interest via\nInterestLib.calculateInterest]
+        B5{"now &gt;= maturityAt?"}
+        B6[Calculate interest via<br/>InterestLib.calculateInterest]
         B7[Set status = Withdrawn]
-        B8[Transfer principal\nfrom SavingCore to User]
-        B9[Emit Withdrawn\nisEarly = false]
+        B8[Transfer principal<br/>from SavingCore to User]
+        B9[Emit Withdrawn<br/>isEarly = false]
     end
 
     subgraph VaultManager
-        B10[Transfer interest\nfrom Vault to User]
+        B10[Transfer interest<br/>from Vault to User]
     end
 
     B2 --> B3
@@ -134,17 +134,17 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        C1([Start]) --> C2[Call earlyWithdraw\ndepositId]
+        C1([Start]) --> C2[Call earlyWithdraw<br/>depositId]
     end
 
     subgraph SavingCore
         C3{Status == Active?}
-        C4{feeReceiver\n!= address(0)?}
-        C5[Calculate penalty =\nprincipal * penaltyBpsAtOpen / 10000]
+        C4{"feeReceiver<br/>!= address(0)?"}
+        C5[Calculate penalty =<br/>principal * penaltyBpsAtOpen / 10000]
         C6[Set status = Withdrawn]
-        C7[Transfer principal - penalty\nfrom SavingCore to User]
-        C8[Transfer penalty\nto feeReceiver]
-        C9[Emit Withdrawn\nisEarly = true]
+        C7[Transfer principal - penalty<br/>from SavingCore to User]
+        C8[Transfer penalty<br/>to feeReceiver]
+        C9[Emit Withdrawn<br/>isEarly = true]
     end
 
     subgraph feeReceiver
@@ -173,19 +173,19 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        D1([Start]) --> D2[Call renewDeposit\ndepositId, newPlanId]
+        D1([Start]) --> D2[Call renewDeposit<br/>depositId, newPlanId]
     end
 
     subgraph SavingCore
         D3{Paused?}
         D4{Status?}
-        D5{now >= maturityAt?}
-        D6{newPlanId\n< nextPlanId?}
-        D7{new plan\nenabled?}
-        D8[Collect renewal principal\nvia _collectRenewalPrincipal]
-        D9[Create new deposit\nwith newPlanId]
-        D10[Set old status =\nManualRenewed]
-        D11[Emit Renewed\noldId, newId,\nnewPrincipal, newPlanId]
+        D5{"now &gt;= maturityAt?"}
+        D6{"newPlanId<br/>&lt; nextPlanId?"}
+        D7{new plan<br/>enabled?}
+        D8[Collect renewal principal<br/>via _collectRenewalPrincipal]
+        D9[Create new deposit<br/>with newPlanId]
+        D10[Set old status =<br/>ManualRenewed]
+        D11[Emit Renewed<br/>oldId, newId,<br/>newPrincipal, newPlanId]
     end
 
     D2 --> D3
@@ -215,17 +215,17 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph Bot
-        E1([Start]) --> E2[Call autoRenewDeposit\ndepositId]
+        E1([Start]) --> E2[Call autoRenewDeposit<br/>depositId]
     end
 
     subgraph SavingCore
         E3{Paused?}
         E4{Status?}
-        E5{now >= maturityAt +\ngracePeriod?}
-        E6[Collect renewal principal\nvia _collectRenewalPrincipal]
-        E7[Create new deposit\nwith same plan, locked APR]
-        E8[Set old status =\nAutoRenewed]
-        E9[Emit Renewed\noldId, newId,\nnewPrincipal, samePlanId]
+        E5{"now &gt;= maturityAt +<br/>gracePeriod?"}
+        E6[Collect renewal principal<br/>via _collectRenewalPrincipal]
+        E7[Create new deposit<br/>with same plan, locked APR]
+        E8[Set old status =<br/>AutoRenewed]
+        E9[Emit Renewed<br/>oldId, newId,<br/>newPrincipal, samePlanId]
     end
 
     E2 --> E3
@@ -249,14 +249,14 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph BankAdmin
-        F1([Start: Create Plan]) --> F2[Call createPlan\ntenor, apr, min, max, penalty]
-        F3([Start: Update Plan]) --> F4[Call updatePlan\nplanId, newAprBps]
-        F5([Start: Enable/Disable]) --> F6[Call enablePlan /\ndisablePlan planId]
+        F1([Start: Create Plan]) --> F2[Call createPlan<br/>tenor, apr, min, max, penalty]
+        F3([Start: Update Plan]) --> F4[Call updatePlan<br/>planId, newAprBps]
+        F5([Start: Enable/Disable]) --> F6[Call enablePlan /<br/>disablePlan planId]
     end
 
     subgraph SavingCore
-        F7[Validate inputs\ntenor > 0, apr > 0,\nmin <= max]
-        F8[Store plan with\nnextPlanId]
+        F7[Validate inputs<br/>tenor > 0, apr > 0,<br/>min <= max]
+        F8[Store plan with<br/>nextPlanId]
         F9[Emit PlanCreated]
         F10{Plan exists?}
         F11[Update plan.aprBps]
@@ -286,24 +286,24 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph BankAdmin
-        G1([Start: Fund Vault]) --> G2[Call fundVault\namount]
-        G3([Start: Withdraw Vault]) --> G4[Call withdrawVault\namount]
-        G5([Start: Set Fee Receiver]) --> G6[Call setFeeReceiver\naddress]
+        G1([Start: Fund Vault]) --> G2[Call fundVault<br/>amount]
+        G3([Start: Withdraw Vault]) --> G4[Call withdrawVault<br/>amount]
+        G5([Start: Set Fee Receiver]) --> G6[Call setFeeReceiver<br/>address]
         G7([Start: Pause SavingCore]) --> G8[Call savingCore.pause]
         G9([Start: Unpause SavingCore]) --> G10[Call savingCore.unpause]
         G11([Start: Pause VaultManager]) --> G12[Call vaultManager.pause]
         G13([Start: Unpause VaultManager]) --> G14[Call vaultManager.unpause]
-        G15([Start: Set SavingCore]) --> G16[Call setSavingCore\naddress]
+        G15([Start: Set SavingCore]) --> G16[Call setSavingCore<br/>address]
     end
 
     subgraph VaultManager
-        G17[Transfer tokens from\nAdmin to VaultManager]
-        G18{amount <= vaultBalance?}
-        G19[Transfer tokens from\nVaultManager to Admin]
+        G17[Transfer tokens from<br/>Admin to VaultManager]
+        G18{"amount &lt;= vaultBalance?"}
+        G19[Transfer tokens from<br/>VaultManager to Admin]
         G20[Update feeReceiver address]
         G21[Set paused = true]
         G22[Set paused = false]
-        G23[Set savingCore address\none-time setter]
+        G23[Set savingCore address<br/>one-time setter]
     end
 
     subgraph SavingCore
@@ -347,19 +347,19 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        H1([Start]) --> H2[Call claimPrincipal\ndepositId]
+        H1([Start]) --> H2[Call claimPrincipal<br/>depositId]
     end
 
     subgraph SavingCore
-        H3{now >= maturityAt?}
+        H3{"now &gt;= maturityAt?"}
         H4{interestClaimed?}
-        H5[Calculate interest via\nInterestLib.calculateInterest]
-        H6[Store interest in\npendingInterest depositId]
-        H7[Transfer principal\nfrom SavingCore to User]
+        H5[Calculate interest via<br/>InterestLib.calculateInterest]
+        H6[Store interest in<br/>pendingInterest depositId]
+        H7[Transfer principal<br/>from SavingCore to User]
         H8{Status?}
-        H9[Set status =\nPrincipalClaimed]
+        H9[Set status =<br/>PrincipalClaimed]
         H10[Set status = Withdrawn]
-        H11[Emit Withdrawn\nisEarly = false]
+        H11[Emit Withdrawn<br/>isEarly = false]
     end
 
     H2 --> H3
@@ -386,28 +386,28 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        I1([Start]) --> I2[Call claimInterest\ndepositId]
+        I1([Start]) --> I2[Call claimInterest<br/>depositId]
     end
 
     subgraph SavingCore
         I3{Paused?}
         I4{interestClaimed?}
         I5{Status?}
-        I6[Path A: Calculate interest\nvia InterestLib]
-        I7{vault balance\n>= interest?}
-        I8[Path A: Pay full interest\nvia payInterest]
-        I9[Path A: Set interestClaimed = true,\nstatus = Withdrawn]
-        I10[Path A: Pay partial interest,\nstore remainder in pendingInterest]
+        I6[Path A: Calculate interest<br/>via InterestLib]
+        I7{"vault balance<br/>&gt;= interest?"}
+        I8[Path A: Pay full interest<br/>via payInterest]
+        I9[Path A: Set interestClaimed = true,<br/>status = Withdrawn]
+        I10[Path A: Pay partial interest,<br/>store remainder in pendingInterest]
         I11[Path B: Read pendingInterest]
-        I12{pendingInterest > 0?}
-        I13[Path B: Pay pendingInterest\nvia payInterest]
-        I14[Path B: Clear pendingInterest,\nset interestClaimed = true,\nstatus = Withdrawn]
-        I15[Path B: Pay partial pending,\nupdate pendingInterest]
+        I12{"pendingInterest &gt; 0?"}
+        I13[Path B: Pay pendingInterest<br/>via payInterest]
+        I14[Path B: Clear pendingInterest,<br/>set interestClaimed = true,<br/>status = Withdrawn]
+        I15[Path B: Pay partial pending,<br/>update pendingInterest]
         I16[Emit InterestClaimed]
     end
 
     subgraph VaultManager
-        I17[Transfer interest\nto User]
+        I17[Transfer interest<br/>to User]
     end
 
     I2 --> I3
@@ -445,12 +445,12 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph User
-        J1([Start]) --> J2[Call burn\ndepositId]
+        J1([Start]) --> J2[Call burn<br/>depositId]
     end
 
     subgraph SavingCore
-        J3{deposit status\n!= Active?}
-        J4{pendingInterest\ndepositId == 0?}
+        J3{"deposit status<br/>!= Active?"}
+        J4{pendingInterest<br/>depositId == 0?}
         J5[Burn ERC721 NFT]
     end
 
