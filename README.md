@@ -197,9 +197,12 @@ governing vault-dependent operations, not user principal retrieval. When paused:
 `withdrawAtMaturity`, `renewDeposit`, and `autoRenewDeposit` are blocked because
 they either commit new funds (renewals compound into fresh terms) or depend on
 vault-atomic logic (interest must transfer in the same transaction). However,
-`claimPrincipal`, `claimInterest`, and `earlyWithdraw` are NOT blocked — they
-pay from SavingCore's own balance (principal) or degrade gracefully (interest),
-with no vault dependency. Blocking these would let a compromised admin key hold
+`claimPrincipal` and `earlyWithdraw` are NOT blocked — they pay from SavingCore's
+own balance with no vault dependency. `claimInterest` IS blocked (vault-dependent).
+During pause, `claimPrincipal` defers 100% of interest to `pendingInterest` rather
+than attempting partial vault payout — distinguishing routine vault underfunding
+(degrade: pay what's available) from an active security incident (block: don't
+touch the vault at all, defer everything until the admin unpause and refills it).
 user funds hostage, which we consider a worse failure mode than a literal
 reading of BR-16 ("prevents all withdrawals when paused"). On-chain transparency
 (`paused()`, `vaultBalance()`, `owner()`) lets users verify admin behavior and
@@ -330,11 +333,11 @@ later when the vault is funded. A single `claimInterest(depositId)` handles two
 paths: Active deposit → full interest claim at maturity; non-Active deposit →
 remaining pending interest from a previous `claimPrincipal`.
 
-**Pause design:** `claimPrincipal`, `claimInterest`, and `earlyWithdraw` have no
-`whenNotPaused` modifier — see Q2 for the full rationale. In short: principal is
-the user's own money, and blocking its retrieval would let a compromised admin
-key hold funds hostage, which we consider a worse failure mode than deviating
-from BR-16's literal wording.
+**Pause design:** `claimPrincipal` and `earlyWithdraw` have no `whenNotPaused`
+modifier — see Q2 for the full rationale. `claimInterest` IS blocked when paused
+(vault-dependent). During pause, `claimPrincipal` defers all interest to
+`pendingInterest` rather than touching the vault, ensuring the user always
+receives their principal even if the admin key is compromised.
 
 **Trade-off:** The NFT is the claim token. If the user sells or burns the NFT
 before calling `claimInterest`, the pending interest is lost. An `_update`

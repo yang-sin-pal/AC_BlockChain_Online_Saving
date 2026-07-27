@@ -218,7 +218,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
     /// @notice Claims principal at maturity without depending on vault balance.
     /// @dev C1: for use when the system is paused or the vault is empty.
-    ///      Interest is recorded as pending and can be claimed later via claimInterest.
+    ///      When paused: interest is fully deferred to pendingInterest (vault untouched).
+    ///      When not paused: pays from vault if possible, records shortfall as pending.
     ///      No whenNotPaused — user can always get their principal back.
     /// @param depositId ID of the matured deposit.
     function claimPrincipal(uint256 depositId) external nonReentrant {
@@ -239,15 +240,20 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         // 1. Principal ALWAYS paid from SavingCore balance
         usdc.safeTransfer(msg.sender, principal);
 
-        // 2. Interest: pay from vault if possible, record remainder as pending
-        uint256 vaultBal = vaultManager.vaultBalance();
-        if (vaultBal >= interest) {
-            vaultManager.payInterest(msg.sender, interest);
-        } else if (vaultBal > 0) {
-            vaultManager.payInterest(msg.sender, vaultBal);
-            pendingInterest[depositId] = interest - vaultBal;
-        } else {
+        // 2. Interest: during pause, defer entirely (don't touch vault);
+        //    otherwise, pay from vault if possible, record shortfall as pending
+        if (paused()) {
             pendingInterest[depositId] = interest;
+        } else {
+            uint256 vaultBal = vaultManager.vaultBalance();
+            if (vaultBal >= interest) {
+                vaultManager.payInterest(msg.sender, interest);
+            } else if (vaultBal > 0) {
+                vaultManager.payInterest(msg.sender, vaultBal);
+                pendingInterest[depositId] = interest - vaultBal;
+            } else {
+                pendingInterest[depositId] = interest;
+            }
         }
 
         emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
@@ -257,9 +263,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @dev Two paths:
     ///      - Active & mature: pays full interest from vault, sets status to InterestClaimed.
     ///      - Non-Active (e.g. after claimPrincipal): pays remaining pendingInterest from vault.
-    ///      No whenNotPaused — user can claim even when paused.
+    ///      Blocked when paused — defers interest payment until system resumes.
     /// @param depositId ID of the deposit to claim interest from.
-    function claimInterest(uint256 depositId) external nonReentrant {
+    function claimInterest(uint256 depositId) external nonReentrant whenNotPaused {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();

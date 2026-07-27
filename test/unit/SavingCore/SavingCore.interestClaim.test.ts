@@ -101,23 +101,17 @@ describe("SavingCore — claimInterest", function () {
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotOwner");
   });
 
-  // ─── 7. claimInterest: when paused → succeeds ──────────────────────
+  // ─── 7. claimInterest: when paused → reverts ──────────────────────
 
-  it("#7 — claimInterest when paused → succeeds", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+  it("#7 — claimInterest when paused → reverts EnforcedPause", async function () {
+    const { savingCore, owner, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(owner).pause();
 
-    const expectedInterest = calculateExpectedInterest(
-      (await savingCore.deposits(0)).principal, DEFAULT_APR, DEFAULT_TENOR,
-    );
-    const userBalBefore = await usdc.balanceOf(await user.getAddress());
-
-    await savingCore.connect(user).claimInterest(0);
-
-    const userBalAfter = await usdc.balanceOf(await user.getAddress());
-    expect(userBalAfter).to.equal(userBalBefore + expectedInterest);
+    await expect(
+      savingCore.connect(user).claimInterest(0),
+    ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
   });
 
   // ─── 8. claimInterest: emits InterestClaimed event ─────────────────

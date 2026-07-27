@@ -221,29 +221,45 @@ describe("SavingCore — C1: principal is always safe", function () {
     expect(userBalAfter).to.equal(userBalBefore + principal);
   });
 
-  // ─── 11. claimInterest when paused → succeeds ─────────────────────────
+  // ─── 11. claimInterest when paused → revert ─────────────────────────
 
-  it("#11 — claimInterest when paused → succeeds", async function () {
+  it("#11 — claimInterest when paused → reverts EnforcedPause", async function () {
+    const { savingCore, owner, user } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(owner).pause();
+
+    await expect(
+      savingCore.connect(user).claimInterest(0),
+    ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
+  });
+
+  // ─── 15. claimPrincipal when paused, vault funded → defers 100% interest ─
+
+  it("#15 — claimPrincipal when paused + vault funded → principal paid, full interest deferred", async function () {
     const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
-    // Drain vault, create pending interest
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimPrincipal(0);
-
-    // Fund vault, then pause
     const deposit = await savingCore.deposits(0);
-    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
-    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
-    await vaultManager.connect(owner).fundVault(expectedInterest);
+    const principal = deposit.principal;
+    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(owner).pause();
 
     const userBalBefore = await usdc.balanceOf(await user.getAddress());
-    await savingCore.connect(user).claimInterest(0);
-    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
 
-    expect(userBalAfter).to.equal(userBalBefore + expectedInterest);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    // User gets principal only
+    expect(userBalAfter).to.equal(userBalBefore + principal);
+    // Vault untouched — even though it had enough funds
+    expect(vaultBalAfter).to.equal(vaultBalBefore);
+    // Full interest deferred to pendingInterest
+    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest);
   });
 
   // ─── 12. NFT transferred after claimPrincipal → new owner can claimInterest ─
