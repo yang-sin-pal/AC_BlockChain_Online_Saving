@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
 /// @title ISavingCore
 /// @notice Interface for the blockchain-based term deposit saving system.

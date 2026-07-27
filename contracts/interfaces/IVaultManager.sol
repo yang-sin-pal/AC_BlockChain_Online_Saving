@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
 /// @title IVaultManager
 /// @notice Interface for the bank's interest vault (completely separate from user principal).
