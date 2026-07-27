@@ -20,3 +20,4 @@ error SavingCore_InvalidDepositRange();
 error SavingCore_NotOwner();
 error SavingCore_GracePeriodNotElapsed();
 error SavingCore_NoPendingInterest();
+error SavingCore_PendingInterestExists();

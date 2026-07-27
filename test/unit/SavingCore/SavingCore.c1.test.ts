@@ -245,4 +245,75 @@ describe("SavingCore — C1: principal is always safe", function () {
 
     expect(userBalAfter).to.equal(userBalBefore + expectedInterest);
   });
+
+  // ─── 12. NFT transferred after claimPrincipal → new owner can claimInterest ─
+
+  it("#12 — NFT transferred after claimPrincipal → new owner can claimInterest", async function () {
+    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    // Transfer NFT from user to other
+    const [, , other] = await ethers.getSigners();
+    await savingCore.connect(user).transferFrom(
+      await user.getAddress(), await other.getAddress(), 0,
+    );
+
+    // Fund vault so claimInterest succeeds
+    const deposit = await savingCore.deposits(0);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
+    await vaultManager.connect(owner).fundVault(expectedInterest);
+
+    // New owner claims interest
+    await expect(
+      savingCore.connect(other).claimInterest(0),
+    ).to.emit(savingCore, "InterestClaimed");
+  });
+
+  // ─── 13. burn with pending interest → revert ───────────────────────────
+
+  it("#13 — burn with pending interest → reverts PendingInterestExists", async function () {
+    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    // pendingInterest > 0 → burn should revert
+    await expect(
+      savingCore.connect(user).burn(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_PendingInterestExists");
+  });
+
+  // ─── 14. burn after full claimInterest → succeeds ──────────────────────
+
+  it("#14 — burn after full claimInterest → succeeds", async function () {
+    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    // Fund vault and claim interest
+    const deposit = await savingCore.deposits(0);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
+    await vaultManager.connect(owner).fundVault(expectedInterest);
+    await savingCore.connect(user).claimInterest(0);
+
+    // pendingInterest == 0 → burn should succeed
+    await savingCore.connect(user).burn(0);
+    await expect(
+      savingCore.ownerOf(0),
+    ).to.be.reverted;
+  });
 });

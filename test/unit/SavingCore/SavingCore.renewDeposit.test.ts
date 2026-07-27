@@ -33,7 +33,7 @@ describe("SavingCore — renewDeposit", function () {
 
     // Old deposit status → ManualRenewed (enum 2)
     const oldDeposit = await savingCore.deposits(depositId);
-    expect(oldDeposit.status).to.equal(2);
+    expect(oldDeposit.status).to.equal(4); // Status.ManualRenewed
 
     // New NFT minted to caller
     const newDepositId = depositId + 1n;
