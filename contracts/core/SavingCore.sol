@@ -210,32 +210,37 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
     /// @notice Withdraws principal + interest at or after maturity.
     /// @dev Caller must be the NFT owner. Interest is paid from the vault.
-    ///      Principal is returned from SavingCore's own balance.
+    ///      If interest was already claimed, pays principal only (no vault call).
+    ///      Principal is always returned from SavingCore's own balance.
     /// @param depositId ID of the deposit to withdraw.
     function withdrawAtMaturity(uint256 depositId) external nonReentrant whenNotPaused override {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
-        if (deposit.interestClaimed) revert SavingCore_AlreadyWithdrawn();
         // Design Q5: >= boundary — at the exact maturity second, withdrawal is allowed
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
         uint256 principal = deposit.principal;
-        uint256 interest = _calcInterest(depositId);
 
         // CEI: update state BEFORE external calls (code-convention.md §7)
         _settlePrincipal(depositId, Status.Withdrawn);
-
-        // Principal from SavingCore balance; interest from vault (architecture separation)
         usdc.safeTransfer(msg.sender, principal);
-        vaultManager.payInterest(msg.sender, interest);
 
-        emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+        if (deposit.interestClaimed) {
+            // Interest already paid out — principal only, no vault call
+            emit Events.Withdrawn(depositId, msg.sender, principal, 0, false);
+        } else {
+            // Full withdrawal: principal + interest from vault
+            uint256 interest = _calcInterest(depositId);
+            vaultManager.payInterest(msg.sender, interest);
+            emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+        }
     }
 
     /// @notice Claims principal at maturity without depending on vault balance.
     /// @dev C1: for use when the system is paused or the vault is empty.
+    ///      If interest was already claimed, pays principal only (no vault call).
     ///      When paused: interest is fully deferred to pendingInterest (vault untouched).
     ///      When not paused: pays from vault if possible, records shortfall as pending.
     ///      No whenNotPaused — user can always get their principal back.
@@ -245,35 +250,38 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
-        if (deposit.interestClaimed) revert SavingCore_AlreadyWithdrawn();
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
         uint256 principal = deposit.principal;
-        uint256 interest = _calcInterest(depositId);
 
         // CEI: update state BEFORE external calls
         _settlePrincipal(depositId, Status.PrincipalClaimed);
-
-        // 1. Principal ALWAYS paid from SavingCore balance
         usdc.safeTransfer(msg.sender, principal);
 
-        // 2. Interest: during pause, defer entirely (don't touch vault);
-        //    otherwise, pay from vault if possible, record shortfall as pending
-        if (paused()) {
-            pendingInterest[depositId] = interest;
+        if (deposit.interestClaimed) {
+            // Interest already paid out — principal only, no vault call
+            emit Events.Withdrawn(depositId, msg.sender, principal, 0, false);
         } else {
-            uint256 vaultBal = vaultManager.vaultBalance();
-            if (vaultBal >= interest) {
-                vaultManager.payInterest(msg.sender, interest);
-            } else if (vaultBal > 0) {
-                vaultManager.payInterest(msg.sender, vaultBal);
-                pendingInterest[depositId] = interest - vaultBal;
-            } else {
-                pendingInterest[depositId] = interest;
-            }
-        }
+            uint256 interest = _calcInterest(depositId);
 
-        emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+            // 2. Interest: during pause, defer entirely (don't touch vault);
+            //    otherwise, pay from vault if possible, record shortfall as pending
+            if (paused()) {
+                pendingInterest[depositId] = interest;
+            } else {
+                uint256 vaultBal = vaultManager.vaultBalance();
+                if (vaultBal >= interest) {
+                    vaultManager.payInterest(msg.sender, interest);
+                } else if (vaultBal > 0) {
+                    vaultManager.payInterest(msg.sender, vaultBal);
+                    pendingInterest[depositId] = interest - vaultBal;
+                } else {
+                    pendingInterest[depositId] = interest;
+                }
+            }
+
+            emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+        }
     }
 
     /// @notice Claims interest from a deposit.

@@ -241,4 +241,24 @@ describe("SavingCore — withdrawAtMaturity", function () {
     const expectedInterest = calculateExpectedInterest(toUSDC(10_000), DEFAULT_APR, DEFAULT_TENOR);
     expect(interestPaid).to.equal(expectedInterest);
   });
+
+  // ─── 13. After claimInterest → principal only ──────────────────
+
+  it("#13 — withdrawAtMaturity after claimInterest → pays principal only, vault unchanged", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimInterest(0);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    expect(userBalAfter).to.equal(userBalBefore + toUSDC(10_000));
+    expect(vaultBalAfter).to.equal(vaultBalBefore);
+  });
 });

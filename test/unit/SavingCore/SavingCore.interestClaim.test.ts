@@ -152,16 +152,48 @@ describe("SavingCore — claimInterest", function () {
     // Vault still has original 10,000 USDC minus what claimInterest took
   });
 
-  // ─── 10. withdrawAtMaturity after claimInterest → reverts ──────────
+  // ─── 10. withdrawAtMaturity after claimInterest → principal only ──────
 
-  it("#10 — withdrawAtMaturity after claimInterest → reverts AlreadyWithdrawn", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
+  it("#10 — withdrawAtMaturity after claimInterest → pays principal only, no vault call", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimInterest(0);
 
-    await expect(
-      savingCore.connect(user).withdrawAtMaturity(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await savingCore.connect(user).withdrawAtMaturity(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    const deposit = await savingCore.deposits(0);
+
+    expect(userBalAfter).to.equal(userBalBefore + deposit.principal);
+    expect(vaultBalAfter).to.equal(vaultBalBefore); // no vault call
+    expect(deposit.status).to.equal(1); // Withdrawn
+  });
+
+  // ─── 11. claimPrincipal after claimInterest → principal only ───────
+
+  it("#11 — claimPrincipal after claimInterest → pays principal only, no vault call", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimInterest(0);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
+
+    await savingCore.connect(user).claimPrincipal(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    const deposit = await savingCore.deposits(0);
+
+    expect(userBalAfter).to.equal(userBalBefore + deposit.principal);
+    expect(vaultBalAfter).to.equal(vaultBalBefore); // no vault call
+    expect(deposit.status).to.equal(2); // PrincipalClaimed
+    expect(await savingCore.pendingInterest(0)).to.equal(0n);
   });
 });
