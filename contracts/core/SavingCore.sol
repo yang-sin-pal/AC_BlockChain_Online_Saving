@@ -301,7 +301,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @dev Caller must be the NFT owner. Penalty is sent to feeReceiver, not the vault.
     ///      Principal minus penalty is returned from SavingCore's own balance.
     /// @param depositId ID of the deposit to withdraw early.
-    function earlyWithdraw(uint256 depositId) external nonReentrant whenNotPaused override {
+    function earlyWithdraw(uint256 depositId) external nonReentrant override {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();

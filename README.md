@@ -192,6 +192,19 @@ it later when the vault is funded. This protects the user but requires a new
 mapping, a claim function, and a solvency guard to prevent the vault from
 paying out more than it holds.
 
+**Pause philosophy and BR-16 deviation:** Our implementation treats pause as
+governing vault-dependent operations, not user principal retrieval. When paused:
+`withdrawAtMaturity`, `renewDeposit`, and `autoRenewDeposit` are blocked because
+they either commit new funds (renewals compound into fresh terms) or depend on
+vault-atomic logic (interest must transfer in the same transaction). However,
+`claimPrincipal`, `claimInterest`, and `earlyWithdraw` are NOT blocked — they
+pay from SavingCore's own balance (principal) or degrade gracefully (interest),
+with no vault dependency. Blocking these would let a compromised admin key hold
+user funds hostage, which we consider a worse failure mode than a literal
+reading of BR-16 ("prevents all withdrawals when paused"). On-chain transparency
+(`paused()`, `vaultBalance()`, `owner()`) lets users verify admin behavior and
+exit before the vault is drained.
+
 **Verified by:** tests #6 and #7 in `withdrawAtMaturity`. Test #6 drains the
 vault to 100 units (far less than interest owed) — withdrawal reverts. Test #7
 leaves exactly `interest - 1` unit in the vault — even 1 unit short causes a
@@ -317,13 +330,11 @@ later when the vault is funded. A single `claimInterest(depositId)` handles two
 paths: Active deposit → full interest claim at maturity; non-Active deposit →
 remaining pending interest from a previous `claimPrincipal`.
 
-**Why no `whenNotPaused` on `claimPrincipal`?** The pause is an admin-controlled
-emergency brake. If the admin is malicious or compromised, they can pause the
-system and drain the vault — `withdrawAtMaturity` would be blocked, but
-`claimPrincipal` still works because it pays from SavingCore's own balance (not
-the vault). This is intentional: C1 prioritizes user protection over admin
-control. Users can verify admin behavior on-chain via `paused()`,
-`vaultBalance()`, and `owner()`.
+**Pause design:** `claimPrincipal`, `claimInterest`, and `earlyWithdraw` have no
+`whenNotPaused` modifier — see Q2 for the full rationale. In short: principal is
+the user's own money, and blocking its retrieval would let a compromised admin
+key hold funds hostage, which we consider a worse failure mode than deviating
+from BR-16's literal wording.
 
 **Trade-off:** The NFT is the claim token. If the user sells or burns the NFT
 before calling `claimInterest`, the pending interest is lost. An `_update`

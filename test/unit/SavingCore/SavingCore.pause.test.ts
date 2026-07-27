@@ -69,16 +69,25 @@ describe("SavingCore — pause / unpause", function () {
     ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
   });
 
-  // ─── 6. earlyWithdraw while paused → revert ──────────────────
+  // ─── 6. earlyWithdraw while paused → succeeds ──────────────────
 
-  it("#6 — earlyWithdraw while paused → reverts EnforcedPause", async function () {
-    const { savingCore, owner, user } = await loadFixture(fixtureWithDeposit);
+  it("#6 — earlyWithdraw while paused → succeeds (no vault dependency)", async function () {
+    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
     await savingCore.connect(owner).pause();
 
-    await expect(
-      savingCore.connect(user).earlyWithdraw(0),
-    ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const feeReceiverBalBefore = await usdc.balanceOf(await vaultManager.feeReceiver());
+
+    await savingCore.connect(user).earlyWithdraw(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const feeReceiverBalAfter = await usdc.balanceOf(await vaultManager.feeReceiver());
+
+    // User gets principal - penalty
+    expect(userBalAfter).to.be.greaterThan(userBalBefore);
+    // FeeReceiver gets the penalty
+    expect(feeReceiverBalAfter).to.be.greaterThan(feeReceiverBalBefore);
   });
 
   // ─── 7. renewDeposit while paused → revert ───────────────────
