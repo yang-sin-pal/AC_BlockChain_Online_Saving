@@ -140,13 +140,16 @@ The deposit NFT (ERC721) is transferable by default. If Alice sells her NFT to
 Bob before maturity, **Bob** can withdraw — the contract checks the current
 NFT owner, not the original depositor.
 
-**Exact line:** `SavingCore.sol:174`:
+**Exact location:** `SavingCore.sol:206`:
 `if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();`
 
-The `ownerOf` function always returns the current token holder. After Alice
-calls `transferFrom(alice, bob, depositId)`, Bob becomes `ownerOf(depositId)`
-and can call `withdrawAtMaturity`, `earlyWithdraw`, or `renewDeposit`. Alice
-loses all rights — she cannot withdraw, and any attempt reverts.
+The check is now extracted into an `onlyDepositOwner(depositId)` modifier (line 205–208)
+and applied to `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`,
+`renewDeposit`, and `burn`. The modifier calls `ownerOf(depositId)` which always returns
+the current token holder. After Alice calls `transferFrom(alice, bob, depositId)`, Bob
+becomes `ownerOf(depositId)` and can call `withdrawAtMaturity`, `earlyWithdraw`,
+`claimPrincipal`, `claimInterest`, `renewDeposit`, or `burn`. Alice loses all rights
+— she cannot withdraw, and any attempt reverts.
 
 **Is this dangerous?** This is **intentional and beneficial**. The NFT acts as
 a bearer instrument: transferring the NFT transfers the right to the deposit.
@@ -166,7 +169,7 @@ At maturity, if the vault has fewer USDC tokens than the interest owed,
 `withdrawAtMaturity` reverts — and the user cannot withdraw **at all**, not
 even their own principal.
 
-**Exact call chain:** `SavingCore.withdrawAtMaturity` (line 192) calls
+**Exact call chain:** `SavingCore.withdrawAtMaturity` (line 245) calls
 `vaultManager.payInterest(msg.sender, interest)`. Inside `VaultManager.payInterest`
 (line 78), `usdc.safeTransfer(to, amount)` attempts to move USDC from the vault
 to the user. If the vault balance is less than `amount`, the ERC20 token reverts
@@ -203,10 +206,10 @@ During pause, `claimPrincipal` defers 100% of interest to `pendingInterest` rath
 than attempting partial vault payout — distinguishing routine vault underfunding
 (degrade: pay what's available) from an active security incident (block: don't
 touch the vault at all, defer everything until the admin unpause and refills it).
-user funds hostage, which we consider a worse failure mode than a literal
-reading of BR-16 ("prevents all withdrawals when paused"). On-chain transparency
-(`paused()`, `vaultBalance()`, `owner()`) lets users verify admin behavior and
-exit before the vault is drained.
+Blocking principal retrieval would hold user funds hostage, which we consider a
+worse failure mode than a literal reading of BR-16 ("prevents all withdrawals when
+paused"). On-chain transparency (`paused()`, `vaultBalance()`, `owner()`) lets
+users verify admin behavior and exit before the vault is drained.
 
 **Verified by:** tests #6 and #7 in `withdrawAtMaturity`. Test #6 drains the
 vault to 100 units (far less than interest owed) — withdrawal reverts. Test #7
@@ -285,19 +288,20 @@ call `withdrawAtMaturity` again before the first call completes. If successful,
 it could drain the contract by withdrawing the same deposit multiple times.
 
 **Defense 1 — `nonReentrant` modifier:** Every user-facing function
-(`withdrawAtMaturity`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit`) is
-protected by OpenZeppelin's `ReentrancyGuard`. The `nonReentrant` modifier sets
-a lock (`_status = _ENTERED`) before execution. Any re-entrant call detects the
-lock and reverts with `ReentrancyGuardReentrantCall`. Verified by tests R1–R5
-in `SavingCore.test.ts` and `VaultManager.test.ts`, which deploy
+(`withdrawAtMaturity`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit`,
+`claimPrincipal`, `claimInterest`) is protected by OpenZeppelin's `ReentrancyGuard`.
+The `nonReentrant` modifier sets a lock (`_status = _ENTERED`) before execution.
+Any re-entrant call detects the lock and reverts with `ReentrancyGuardReentrantCall`.
+`burn` intentionally omits `nonReentrant` — `_burn` makes no external calls.
+Verified by tests R1–R5 in `SavingCore.test.ts` and `VaultManager.test.ts`, which deploy
 `ReentrantAttacker.sol` — a malicious contract that attempts re-entry during the
 USDC transfer callback via `ReentrantToken`.
 
 **Defense 2 — Checks-Effects-Interactions (CEI):** State is updated BEFORE
-external calls. In `withdrawAtMaturity` (`SavingCore.sol:188`),
-`deposit.status = Status.Withdrawn` is set before `safeTransfer` at line 191.
-Even without `nonReentrant`, the double-withdraw would be blocked by the
-`AlreadyWithdrawn` check at line 175.
+external calls. In `withdrawAtMaturity` (`SavingCore.sol:258`),
+`deposits[depositId].status = Status.Withdrawn` is set before `safeTransfer` at
+line 260. Even without `nonReentrant`, the double-withdraw would be blocked by
+the `AlreadyWithdrawn` check at line 249.
 
 ---
 
@@ -305,7 +309,7 @@ Even without `nonReentrant`, the double-withdraw would be blocked by the
 
 Security considerations will be documented in:
 
-- docs/audit-notes.md
+- docs/audit/audit-notes.md
 
 Topics include:
 
@@ -343,7 +347,7 @@ receives their principal even if the admin key is compromised.
 before calling `claimInterest`, the pending interest is lost. An `_update`
 override blocks burning while `pendingInterest > 0` to reduce this risk.
 
-**Verified by:** 14 tests in `SavingCore.c1.test.ts` and 10 tests in
+**Verified by:** 18 tests in `SavingCore.c1.test.ts` and 15 tests in
 `SavingCore.interestClaim.test.ts`.
 
 ---
