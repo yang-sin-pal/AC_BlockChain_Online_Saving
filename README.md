@@ -306,46 +306,31 @@ Topics include:
 ## C1 — Principal is always safe
 
 **Problem:** In the base spec, `withdrawAtMaturity` reverts when the vault cannot
-pay interest — locking the user's own principal in SavingCore. The admin could
-never fund the vault, trapping user funds forever. This is unfair: the user
-fulfilled the contract, yet cannot access their money.
+pay interest — locking the user's own principal in SavingCore forever. The user
+fulfilled the contract, yet cannot access their money due to the bank's failure
+to fund the vault.
 
-**Solution:** Added `claimPrincipal(depositId)` — a separate function **without**
+**Solution:** Added `claimPrincipal(depositId)` — a function **without**
 `whenNotPaused` that pays principal immediately from SavingCore's balance and
 records any unpaid interest as `pendingInterest`. Users call `claimInterest`
-later when the vault is funded. This ensures the user can ALWAYS get their
-principal back, even when the system is paused or the vault is empty.
+later when the vault is funded. A single `claimInterest(depositId)` handles two
+paths: Active deposit → full interest claim at maturity; non-Active deposit →
+remaining pending interest from a previous `claimPrincipal`.
 
-**Unified claimInterest:** A single `claimInterest(depositId)` handles two paths:
-- **Active & mature deposit:** pays full interest from vault, sets status to
-  `InterestClaimed`. Principal stays in SavingCore — user can later `renewDeposit`
-  with no compounding (interest already paid out).
-- **Non-Active deposit (after claimPrincipal):** pays remaining `pendingInterest`
-  from vault. Clears the mapping to 0.
+**Why no `whenNotPaused` on `claimPrincipal`?** The pause is an admin-controlled
+emergency brake. If the admin is malicious or compromised, they can pause the
+system and drain the vault — `withdrawAtMaturity` would be blocked, but
+`claimPrincipal` still works because it pays from SavingCore's own balance (not
+the vault). This is intentional: C1 prioritizes user protection over admin
+control. Users can verify admin behavior on-chain via `paused()`,
+`vaultBalance()`, and `owner()`.
 
-This avoids a separate `claimInterestOnly` function — one function adapts to the
-deposit's current state.
+**Trade-off:** The NFT is the claim token. If the user sells or burns the NFT
+before calling `claimInterest`, the pending interest is lost. An `_update`
+override blocks burning while `pendingInterest > 0` to reduce this risk.
 
-**Status tracking:** `claimPrincipal` sets the deposit status to `PrincipalClaimed`
-(2) — distinct from `Withdrawn` (1) — so the system knows the deposit was only
-partially settled. `claimInterest` on an Active deposit sets status to
-`InterestClaimed` (3).
-
-**Burn guard:** The NFT is the claim token for `pendingInterest`. An `_update`
-override on `SavingCore.sol:46` blocks burning the NFT while `pendingInterest > 0`,
-reverting with `SavingCore_PendingInterestExists`. The public `burn(depositId)`
-function checks that the deposit is not `Active` before burning. This protects
-users who sell the NFT on a secondary market — the buyer can always claim the
-pending interest before burning.
-
-**Trade-off:** If the user sells/burns the NFT before calling `claimInterest`, the
-pending interest is lost. The `Withdrawn` event always reports the full interest
-amount; the `pendingInterest` mapping tracks what remains unpaid.
-
-**Verified by:** 14 tests in `SavingCore.c1.test.ts` (principal safe, partial
-vault, pending claim, NFT transfer, burn guard) and 10 tests in
-`SavingCore.interestClaim.test.ts` (interest-only claim, renewal after claim,
-pause behavior).
+**Verified by:** 14 tests in `SavingCore.c1.test.ts` and 10 tests in
+`SavingCore.interestClaim.test.ts`.
 
 ---
 
