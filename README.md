@@ -303,9 +303,25 @@ Topics include:
 
 # 10. Bonus Features
 
-## C1 — Principal Protection
+## C1 — Principal is always safe
 
-_To be implemented._
+**Problem:** In the base spec, `withdrawAtMaturity` reverts when the vault cannot
+pay interest — locking the user's own principal in SavingCore. The admin could
+never fund the vault, trapping user funds forever. This is unfair: the user
+fulfilled the contract, yet cannot access their money.
+
+**Solution:** Added `claimPrincipal(depositId)` — a separate function **without**
+`whenNotPaused` that pays principal immediately from SavingCore's balance and
+records any unpaid interest as `pendingInterest`. Users call `claimInterest`
+later when the vault is funded. This ensures the user can ALWAYS get their
+principal back, even when the system is paused or the vault is empty.
+
+**Trade-off:** The NFT is the claim token. If the user sells/burns the NFT
+before calling `claimInterest`, the pending interest is lost. The `Withdrawn`
+event always reports the full interest amount; the `pendingInterest` mapping
+tracks what remains unpaid. Verified by 11 tests in `SavingCore.c1.test.ts`,
+including tests #10 and #11 which prove `claimPrincipal` and `claimInterest`
+work while the system is paused.
 
 ---
 

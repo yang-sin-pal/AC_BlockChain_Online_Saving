@@ -73,6 +73,14 @@ interface ISavingCore {
     /// @param depositId ID of the deposit to withdraw.
     function withdrawAtMaturity(uint256 depositId) external;
 
+    /// @notice Claims principal at maturity without depending on vault balance (C1).
+    /// @param depositId ID of the matured deposit.
+    function claimPrincipal(uint256 depositId) external;
+
+    /// @notice Claims pending interest from a previous partial withdrawal.
+    /// @param depositId ID of the withdrawn deposit with pending interest.
+    function claimInterest(uint256 depositId) external;
+
     /// @notice Early withdrawal — no interest, penalty deducted from principal.
     /// @param depositId ID of the deposit to withdraw early.
     function earlyWithdraw(uint256 depositId) external;

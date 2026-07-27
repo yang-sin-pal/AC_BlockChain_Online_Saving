@@ -31,6 +31,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     mapping(uint256 => Plan) public plans;
     uint256 public nextPlanId;
 
+    // depositId => unpaid interest (C1: principal is always safe)
+    mapping(uint256 => uint256) public pendingInterest;
+
     constructor(address _usdc, address _vaultManager)
         ERC721("Term Deposit Certificate", "TDC")
         Ownable(msg.sender)
@@ -203,6 +206,58 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         vaultManager.payInterest(msg.sender, interest);
 
         emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+    }
+
+    /// @notice Claims principal at maturity without depending on vault balance.
+    /// @dev C1: for use when the system is paused or the vault is empty.
+    ///      Interest is recorded as pending and can be claimed later via claimInterest.
+    ///      No whenNotPaused — user can always get their principal back.
+    /// @param depositId ID of the matured deposit.
+    function claimPrincipal(uint256 depositId) external nonReentrant {
+        Deposit storage deposit = deposits[depositId];
+
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
+
+        uint256 principal = deposit.principal;
+        uint256 interest = InterestLib.calculateInterest(
+            principal, deposit.aprBpsAtOpen, plans[deposit.planId].tenorDays
+        );
+
+        // CEI: update state BEFORE external calls
+        deposit.status = Status.Withdrawn;
+
+        // 1. Principal ALWAYS paid from SavingCore balance
+        usdc.safeTransfer(msg.sender, principal);
+
+        // 2. Interest: pay from vault if possible, record remainder as pending
+        uint256 vaultBal = vaultManager.vaultBalance();
+        if (vaultBal >= interest) {
+            vaultManager.payInterest(msg.sender, interest);
+        } else if (vaultBal > 0) {
+            vaultManager.payInterest(msg.sender, vaultBal);
+            pendingInterest[depositId] = interest - vaultBal;
+        } else {
+            pendingInterest[depositId] = interest;
+        }
+
+        emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
+    }
+
+    /// @notice Claims pending interest from a previous withdrawal where the vault was insufficient.
+    /// @dev The NFT is still owned by the caller (not burned by withdrawAtMaturity or claimPrincipal).
+    ///      No whenNotPaused — user can claim even when paused.
+    /// @param depositId ID of the withdrawn deposit with pending interest.
+    function claimInterest(uint256 depositId) external nonReentrant {
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        uint256 amount = pendingInterest[depositId];
+        if (amount == 0) revert SavingCore_NoPendingInterest();
+
+        pendingInterest[depositId] = 0;
+        vaultManager.payInterest(msg.sender, amount);
+
+        emit Events.InterestClaimed(depositId, msg.sender, amount);
     }
 
     /// @notice Early withdrawal — no interest, penalty deducted from principal.

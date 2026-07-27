@@ -31,6 +31,7 @@ library Events {
     );
     event PlanEnabled(uint256 indexed planId);
     event PlanDisabled(uint256 indexed planId);
+    event InterestClaimed(uint256 indexed depositId, address indexed to, uint256 amount);
 
     // --- VaultManager ---
     event VaultFunded(address indexed from, uint256 amount);
