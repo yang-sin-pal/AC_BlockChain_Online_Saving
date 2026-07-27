@@ -15,6 +15,30 @@ This document describes the activity diagrams for the **Blockchain-Based Online 
 
 ---
 
+## Modifier Reference
+
+| Function | `nonReentrant` | `whenNotPaused` | `onlyDepositOwner` | `onlyOwner` |
+|----------|:-:|:-:|:-:|:-:|
+| `openDeposit` | ✅ | — | — | — |
+| `withdrawAtMaturity` | ✅ | ✅ | ✅ | — |
+| `claimPrincipal` | ✅ | — | ✅ | — |
+| `claimInterest` | ✅ | ✅ | ✅ | — |
+| `burn` | — | — | ✅ | — |
+| `earlyWithdraw` | ✅ | — | ✅ | — |
+| `renewDeposit` | ✅ | ✅ | ✅ | — |
+| `autoRenewDeposit` | ✅ | ✅ | — | — |
+| `createPlan` | — | — | — | ✅ |
+| `updatePlan` | — | — | — | ✅ |
+| `enablePlan` / `disablePlan` | — | — | — | ✅ |
+| `pause` / `unpause` | — | — | — | ✅ |
+| `fundVault` | — | — | — | ✅ |
+| `withdrawVault` | ✅ | ✅ | — | ✅ |
+| `setFeeReceiver` | — | — | — | ✅ |
+| `setSavingCore` | — | — | — | ✅ |
+| `payInterest` | ✅ | ✅ | — | — |
+
+---
+
 ## 1. Open Deposit Flow — §3.1
 
 ```mermaid
@@ -25,35 +49,39 @@ flowchart TD
     end
 
     subgraph SavingCore
-        A4{Plan enabled?}
-        A5{amount >= minDeposit?}
-        A6{amount <= maxDeposit?}
-        A7[Transfer tokens from User\nto SavingCore]
-        A8[Snapshot aprBps &\npenaltyBps at open]
-        A9[Mint ERC721 NFT\nto User]
-        A10[Set status = Active]
-        A11[Calculate maturityAt =\nblock.timestamp + tenorDays * 86400]
-        A12[Emit DepositOpened]
+        A4{Plan exists?}
+        A5{Plan enabled?}
+        A6{amount > 0?}
+        A7{amount >= minDeposit?}
+        A8{amount <= maxDeposit?}
+        A9[Transfer tokens from User\nto SavingCore]
+        A10[Snapshot aprBps &\npenaltyBps at open]
+        A11[Set status = Active,\nmaturityAt = now + tenorDays * 86400]
+        A12[Mint ERC721 NFT\nto User]
+        A13[Emit DepositOpened]
     end
 
     subgraph MockUSDC
-        A13[Transfer tokens from\nUser to SavingCore]
+        A14[Transfer tokens from\nUser to SavingCore]
     end
 
     A3 --> A4
-    A4 -- No --> A4R([Revert: Plan disabled])
+    A4 -- No --> A4R([Revert: PlanNotFound])
     A4 -- Yes --> A5
-    A5 -- No --> A5R([Revert: Below minimum])
+    A5 -- No --> A5R([Revert: PlanNotEnabled])
     A5 -- Yes --> A6
-    A6 -- No --> A6R([Revert: Above maximum])
-    A6 -- Yes --> A13
-    A13 --> A7
-    A7 --> A8
-    A8 --> A9
+    A6 -- No --> A6R([Revert: ZeroAmount])
+    A6 -- Yes --> A7
+    A7 -- No --> A7R([Revert: DepositBelowMin])
+    A7 -- Yes --> A8
+    A8 -- No --> A8R([Revert: DepositAboveMax])
+    A8 -- Yes --> A14
+    A14 --> A9
     A9 --> A10
     A10 --> A11
     A11 --> A12
-    A12 --> A14([End])
+    A12 --> A13
+    A13 --> A15([End])
 ```
 
 ---
@@ -68,78 +96,79 @@ flowchart TD
 
     subgraph SavingCore
         B3{Paused?}
-        B4{status == Active?}
+        B4{Status?}
         B5{now >= maturityAt?}
-        B6[Calculate interest =\nprincipal * aprBpsAtOpen * tenorSeconds\n/ 365 * 86400 * 10000]
-        B7[Transfer principal\nfrom SavingCore to User]
-        B8[Set status = Withdrawn]
+        B6[Calculate interest via\nInterestLib.calculateInterest]
+        B7[Set status = Withdrawn]
+        B8[Transfer principal\nfrom SavingCore to User]
         B9[Emit Withdrawn\nisEarly = false]
     end
 
     subgraph VaultManager
-        B10{Vault balance >= interest?}
-        B11[Transfer interest\nfrom VaultManager to User]
+        B10[Transfer interest\nfrom Vault to User]
     end
 
     B2 --> B3
-    B3 -- Yes --> BR1([Revert: System paused])
+    B3 -- Yes --> BR1([Revert: EnforcedPause])
     B3 -- No --> B4
-    B4 -- No --> BR2([Revert: Not active])
-    B4 -- Yes --> B5
-    B5 -- No --> BR3([Revert: Not yet mature])
+    B4 -- Active --> B5
+    B4 -- PrincipalClaimed --> BR2([Revert: UseClaimInterest])
+    B4 -- interestClaimed = true --> BR3([Revert: UseClaimPrincipal])
+    B4 -- Withdrawn/ManualRenewed/AutoRenewed --> BR4([Revert: AlreadyWithdrawn])
+    B5 -- No --> BR5([Revert: NotYetMature])
     B5 -- Yes --> B6
     B6 --> B7
+    B7 --> B8
     B7 --> B10
-    B10 -- No --> BR4([Revert: Vault insufficient])
-    B10 -- Yes --> B11
-    B11 --> B8
     B8 --> B9
-    B9 --> B12([End])
+    B10 --> B9
+    B9 --> B11([End])
 ```
 
 ---
 
 ## 3. Early Withdraw Flow — §3.3
 
+> **Note:** `earlyWithdraw` has **NO** `whenNotPaused` — users can always exit early, even during pause.
+
 ```mermaid
 flowchart TD
     subgraph User
-        C1([Start]) --> C2[Call withdrawAtMaturity\ndepositId]
+        C1([Start]) --> C2[Call earlyWithdraw\ndepositId]
     end
 
     subgraph SavingCore
-        C3{Paused?}
-        C4{status == Active?}
-        C5{now < maturityAt?}
-        C6[Calculate penalty =\nprincipal * penaltyBpsAtOpen / 10000]
+        C3{Status == Active?}
+        C4{feeReceiver\n!= address(0)?}
+        C5[Calculate penalty =\nprincipal * penaltyBpsAtOpen / 10000]
+        C6[Set status = Withdrawn]
         C7[Transfer principal - penalty\nfrom SavingCore to User]
         C8[Transfer penalty\nto feeReceiver]
-        C9[Set status = Withdrawn]
-        C10[Emit Withdrawn\nisEarly = true]
+        C9[Emit Withdrawn\nisEarly = true]
     end
 
     subgraph feeReceiver
-        C11[Receive penalty]
+        C10[Receive penalty]
     end
 
     C2 --> C3
-    C3 -- Yes --> CR1([Revert: System paused])
-    C3 -- No --> C4
-    C4 -- No --> CR2([Revert: Not active])
+    C3 -- No --> CR1([Revert: AlreadyWithdrawn])
+    C3 -- Yes --> C4
+    C4 -- No --> CR2([Revert: FeeReceiverNotSet])
     C4 -- Yes --> C5
-    C5 -- No --> CR3([Use maturity path])
-    C5 -- Yes --> C6
+    C5 --> C6
     C6 --> C7
     C6 --> C8
     C7 --> C9
-    C8 --> C11
-    C9 --> C10
-    C10 --> C12([End])
+    C8 --> C10
+    C9 --> C11([End])
 ```
 
 ---
 
 ## 4. Manual Renew Flow — §3.4
+
+> **Note:** Allows `PrincipalClaimed` status — user can renew even after claiming principal.
 
 ```mermaid
 flowchart TD
@@ -149,25 +178,28 @@ flowchart TD
 
     subgraph SavingCore
         D3{Paused?}
-        D4{status == Active?}
+        D4{Status?}
         D5{now >= maturityAt?}
-        D6[Calculate interest on\nold deposit]
-        D7[newPrincipal =\nprincipal + interest]
-        D8[Snapshot new plan's\nAPR & penalty]
-        D9[Mint new ERC721 NFT\nwith newPrincipal]
+        D6{newPlanId\n< nextPlanId?}
+        D7{new plan\nenabled?}
+        D8[Collect renewal principal\nvia _collectRenewalPrincipal]
+        D9[Create new deposit\nwith newPlanId]
         D10[Set old status =\nManualRenewed]
         D11[Emit Renewed\noldId, newId,\nnewPrincipal, newPlanId]
     end
 
     D2 --> D3
-    D3 -- Yes --> DR1([Revert: System paused])
+    D3 -- Yes --> DR1([Revert: EnforcedPause])
     D3 -- No --> D4
-    D4 -- No --> DR2([Revert: Not active])
-    D4 -- Yes --> D5
-    D5 -- No --> DR3([Revert: Not yet mature])
+    D4 -- Active --> D5
+    D4 -- PrincipalClaimed --> D5
+    D4 -- Withdrawn/ManualRenewed/AutoRenewed --> DR2([Revert: AlreadyWithdrawn])
+    D5 -- No --> DR3([Revert: NotYetMature])
     D5 -- Yes --> D6
-    D6 --> D7
-    D7 --> D8
+    D6 -- No --> DR4([Revert: PlanNotFound])
+    D6 -- Yes --> D7
+    D7 -- No --> DR5([Revert: PlanNotEnabled])
+    D7 -- Yes --> D8
     D8 --> D9
     D9 --> D10
     D10 --> D11
@@ -178,6 +210,8 @@ flowchart TD
 
 ## 5. Auto-Renew Flow — §3.5
 
+> **Note:** `autoRenewDeposit` has `whenNotPaused` — blocked during pause. No owner check — anyone (bot) can call.
+
 ```mermaid
 flowchart TD
     subgraph Bot
@@ -185,27 +219,27 @@ flowchart TD
     end
 
     subgraph SavingCore
-        E3{status == Active?}
-        E4{now >= maturityAt +\ngracePeriod?}
-        E5[Calculate interest on\nold deposit]
-        E6[newPrincipal =\nprincipal + interest]
-        E7[Reuse original\naprBpsAtOpen\nNOT current plan APR]
-        E8[Mint new ERC721 NFT\nsame tenor, locked APR]
-        E9[Set old status =\nAutoRenewed]
-        E10[Emit Renewed\noldId, newId,\nnewPrincipal, samePlanId]
+        E3{Paused?}
+        E4{Status?}
+        E5{now >= maturityAt +\ngracePeriod?}
+        E6[Collect renewal principal\nvia _collectRenewalPrincipal]
+        E7[Create new deposit\nwith same plan, locked APR]
+        E8[Set old status =\nAutoRenewed]
+        E9[Emit Renewed\noldId, newId,\nnewPrincipal, samePlanId]
     end
 
     E2 --> E3
-    E3 -- No --> ER1([Revert: Not active])
-    E3 -- Yes --> E4
-    E4 -- No --> ER2([Revert: Grace period\nnot yet expired])
-    E4 -- Yes --> E5
-    E5 --> E6
+    E3 -- Yes --> ER1([Revert: EnforcedPause])
+    E3 -- No --> E4
+    E4 -- Active --> E5
+    E4 -- PrincipalClaimed --> E5
+    E4 -- Withdrawn/ManualRenewed/AutoRenewed --> ER2([Revert: AlreadyWithdrawn])
+    E5 -- No --> ER3([Revert: GracePeriodNotElapsed])
+    E5 -- Yes --> E6
     E6 --> E7
     E7 --> E8
     E8 --> E9
-    E9 --> E10
-    E10 --> E11([End])
+    E9 --> E10([End])
 ```
 
 ---
@@ -221,7 +255,7 @@ flowchart TD
     end
 
     subgraph SavingCore
-        F7[Validate inputs\ntenor > 0, apr > 0]
+        F7[Validate inputs\ntenor > 0, apr > 0,\nmin <= max]
         F8[Store plan with\nnextPlanId]
         F9[Emit PlanCreated]
         F10{Plan exists?}
@@ -236,7 +270,7 @@ flowchart TD
     F9 --> F14([End])
 
     F4 --> F10
-    F10 -- No --> FR1([Revert: Plan not found])
+    F10 -- No --> FR1([Revert: PlanNotFound])
     F10 -- Yes --> F11
     F11 --> F12
     F12 --> F15([End])
@@ -255,196 +289,192 @@ flowchart TD
         G1([Start: Fund Vault]) --> G2[Call fundVault\namount]
         G3([Start: Withdraw Vault]) --> G4[Call withdrawVault\namount]
         G5([Start: Set Fee Receiver]) --> G6[Call setFeeReceiver\naddress]
-        G7([Start: Pause]) --> G8[Call pause]
-        G9([Start: Unpause]) --> G10[Call unpause]
+        G7([Start: Pause SavingCore]) --> G8[Call savingCore.pause]
+        G9([Start: Unpause SavingCore]) --> G10[Call savingCore.unpause]
+        G11([Start: Pause VaultManager]) --> G12[Call vaultManager.pause]
+        G13([Start: Unpause VaultManager]) --> G14[Call vaultManager.unpause]
+        G15([Start: Set SavingCore]) --> G16[Call setSavingCore\naddress]
     end
 
     subgraph VaultManager
-        G11[Transfer tokens from\nAdmin to VaultManager]
-        G12{amount <= vaultBalance?}
-        G13[Transfer tokens from\nVaultManager to Admin]
-        G14[Update feeReceiver address]
-        G15[Set paused = true]
-        G16[Set paused = false]
+        G17[Transfer tokens from\nAdmin to VaultManager]
+        G18{amount <= vaultBalance?}
+        G19[Transfer tokens from\nVaultManager to Admin]
+        G20[Update feeReceiver address]
+        G21[Set paused = true]
+        G22[Set paused = false]
+        G23[Set savingCore address\none-time setter]
     end
 
-    subgraph MockUSDC
-        G17[Transfer tokens]
+    subgraph SavingCore
+        G24[Set paused = true]
+        G25[Set paused = false]
     end
 
-    G2 --> G11
-    G11 --> G18([End])
+    G2 --> G17
+    G17 --> G26([End])
 
-    G4 --> G12
-    G12 -- No --> GR1([Revert: Insufficient balance])
-    G12 -- Yes --> G13
-    G13 --> G19([End])
+    G4 --> G18
+    G18 -- No --> GR1([Revert: InsufficientBalance])
+    G18 -- Yes --> G19
+    G19 --> G27([End])
 
-    G6 --> G14
-    G14 --> G20([End])
+    G6 --> G20
+    G20 --> G28([End])
 
-    G8 --> G15
-    G15 --> G21([End])
+    G8 --> G24
+    G24 --> G29([End])
 
-    G10 --> G16
-    G16 --> G22([End])
+    G10 --> G25
+    G25 --> G30([End])
+
+    G12 --> G21
+    G21 --> G31([End])
+
+    G14 --> G22
+    G22 --> G32([End])
+
+    G16 --> G23
+    G23 --> G33([End])
 ```
 
 ---
 
-## Bonus Challenges
+## 8. Claim Principal (C1 — Principal Protection) — §8.3
 
-### C1: Principal Protection (Vault Empty) — §8.3 C1
-
-Extends Diagram 2 (Withdraw at Maturity). When the vault cannot pay full interest:
+> **Key design:** No `whenNotPaused` — user can **always** reclaim principal, even during pause or when vault is empty.
 
 ```mermaid
 flowchart TD
     subgraph User
-        H1([Start]) --> H2[Call withdrawAtMaturity\ndepositId]
+        H1([Start]) --> H2[Call claimPrincipal\ndepositId]
     end
 
     subgraph SavingCore
-        H3[Calculate interest]
-        H4{Vault balance >= interest?}
-        H5[Pay principal + interest\nfrom SavingCore + VaultManager]
-        H6[Pay principal NOW\nfrom SavingCore]
-        H7[Record debt = interest\nin pendingInterest depositId]
-        H8[Set status = Withdrawn]
-        H9[Emit Withdrawn\nisEarly = false]
-    end
-
-    subgraph VaultManager
-        H10[Transfer interest if\nfunded]
-        H11[Later: user calls\nclaimPendingInterest]
+        H3{now >= maturityAt?}
+        H4{interestClaimed?}
+        H5[Calculate interest via\nInterestLib.calculateInterest]
+        H6[Store interest in\npendingInterest depositId]
+        H7[Transfer principal\nfrom SavingCore to User]
+        H8{Status?}
+        H9[Set status =\nPrincipalClaimed]
+        H10[Set status = Withdrawn]
+        H11[Emit Withdrawn\nisEarly = false]
     end
 
     H2 --> H3
-    H3 --> H4
-    H4 -- Yes --> H5
-    H5 --> H8
-    H4 -- No --> H6
+    H3 -- No --> HR1([Revert: NotYetMature])
+    H3 -- Yes --> H4
+    H4 -- Yes --> HR2([Revert: PrincipalAlreadyClaimed])
+    H4 -- No --> H5
+    H5 --> H6
     H6 --> H7
     H7 --> H8
-    H8 --> H9
-    H9 --> H12([End])
-
-    H7 -.-> H11
+    H8 -- Active --> H9
+    H8 -- Withdrawn --> H10
+    H9 --> H11
+    H10 --> H11
+    H11 --> H12([End])
 ```
 
 ---
 
-### C2: Solvency Guard (Vault Withdraw Check) — §8.3 C2
+## 9. Claim Interest (C1 — Partial Vault Payment) — §8.3
 
-Extends Diagram 7 (Admin — Withdraw Vault):
+> **Note:** `claimInterest` has `whenNotPaused` on SavingCore. If VaultManager is also paused, `payInterest` reverts.
 
 ```mermaid
 flowchart TD
-    subgraph BankAdmin
-        I1([Start]) --> I2[Call withdrawVault\namount]
+    subgraph User
+        I1([Start]) --> I2[Call claimInterest\ndepositId]
+    end
+
+    subgraph SavingCore
+        I3{Paused?}
+        I4{interestClaimed?}
+        I5{Status?}
+        I6[Path A: Calculate interest\nvia InterestLib]
+        I7{vault balance\n>= interest?}
+        I8[Path A: Pay full interest\nvia payInterest]
+        I9[Path A: Set interestClaimed = true,\nstatus = Withdrawn]
+        I10[Path A: Pay partial interest,\nstore remainder in pendingInterest]
+        I11[Path B: Read pendingInterest]
+        I12{pendingInterest > 0?}
+        I13[Path B: Pay pendingInterest\nvia payInterest]
+        I14[Path B: Clear pendingInterest,\nset interestClaimed = true,\nstatus = Withdrawn]
+        I15[Path B: Pay partial pending,\nupdate pendingInterest]
+        I16[Emit InterestClaimed]
     end
 
     subgraph VaultManager
-        I3[Calculate totalOwedInterest =\nsum of all active deposits interest]
-        I4{vaultBalance - amount >=\ntotalOwedInterest?}
-        I5[Transfer amount to Admin]
-        I6[Revert: Would break\ninterest obligations]
+        I17[Transfer interest\nto User]
     end
 
     I2 --> I3
-    I3 --> I4
-    I4 -- Yes --> I5
-    I5 --> I7([End])
-    I4 -- No --> I6
+    I3 -- Yes --> IR1([Revert: EnforcedPause])
+    I3 -- No --> I4
+    I4 -- Yes --> IR2([Revert: InterestAlreadyClaimed])
+    I4 -- No --> I5
+    I5 -- Active --> I6
+    I5 -- PrincipalClaimed --> I11
+    I5 -- Withdrawn/ManualRenewed/AutoRenewed --> IR3([Revert: AlreadyWithdrawn])
+    I6 --> I7
+    I7 -- Yes --> I8
+    I8 --> I17
+    I17 --> I9
+    I9 --> I16
+    I7 -- No --> I10
+    I10 --> I16
+    I11 --> I12
+    I12 -- No --> IR4([Revert: NoPendingInterest])
+    I12 -- Yes --> I13
+    I13 --> I17
+    I17 --> I14
+    I14 --> I16
+    I12 -- vault insufficient --> I15
+    I15 --> I16
+    I16 --> I18([End])
 ```
 
 ---
 
-### C3: Partial Early Withdraw — §8.3 C3
+## 10. Burn NFT — §2.2, §8.3 C1
 
-Extends Diagram 3 (Early Withdraw):
+> **Note:** `burn` has no `nonReentrant` (safe — only burns token). Blocked if `pendingInterest > 0` via `_update` override.
 
 ```mermaid
 flowchart TD
     subgraph User
-        J1([Start]) --> J2[Call partialEarlyWithdraw\ndepositId, withdrawAmount]
+        J1([Start]) --> J2[Call burn\ndepositId]
     end
 
     subgraph SavingCore
-        J3{withdrawAmount <=\ndeposit.principal?}
-        J4[Calculate penalty =\nwithdrawAmount * penaltyBpsAtOpen / 10000]
-        J5[Transfer withdrawAmount - penalty\nto User]
-        J6[Transfer penalty\nto feeReceiver]
-        J7[Update deposit.principal -=\nwithdrawAmount]
-        J8{deposit.principal == 0?}
-        J9[Set status = Withdrawn]
-        J10[Deposit remains Active\nwith reduced principal]
+        J3{deposit status\n!= Active?}
+        J4{pendingInterest\ndepositId == 0?}
+        J5[Burn ERC721 NFT]
     end
 
     J2 --> J3
-    J3 -- No --> JR1([Revert: Amount exceeds principal])
+    J3 -- No --> JR1([Revert: Cannot burn active deposit])
     J3 -- Yes --> J4
-    J4 --> J5
-    J4 --> J6
-    J5 --> J7
-    J6 --> J7
-    J7 --> J8
-    J8 -- Yes --> J9
-    J9 --> JR2([End])
-    J8 -- No --> J10
-    J10 --> JR3([End])
-```
-
----
-
-### C4: Top-up Deposit — §8.3 C4
-
-```mermaid
-flowchart TD
-    subgraph User
-        K1([Start]) --> K2[Approve MockUSDC spending]
-        K2 --> K3[Call topUpDeposit\ndepositId, addAmount]
-    end
-
-    subgraph SavingCore
-        K4{status == Active?}
-        K5{now < maturityAt?}
-        K6[Transfer addAmount from User\nto SavingCore]
-        K7[Recalculate fair interest\nfor combined principal]
-        K8[Update deposit.principal +=\naddAmount]
-        K9[Emit DepositToppedUp\ndepositId, addAmount,\nnewPrincipal]
-    end
-
-    subgraph MockUSDC
-        K10[Transfer tokens]
-    end
-
-    K3 --> K4
-    K4 -- No --> KR1([Revert: Not active])
-    K4 -- Yes --> K5
-    K5 -- No --> KR2([Revert: Already mature])
-    K5 -- Yes --> K10
-    K10 --> K6
-    K6 --> K7
-    K7 --> K8
-    K8 --> K9
-    K9 --> K11([End])
+    J4 -- No --> JR2([Revert: PendingInterestExists])
+    J4 -- Yes --> J5
+    J5 --> JR3([End])
 ```
 
 ---
 
 ## Flow Summary Table
 
-| # | Flow | Actor | Key Decision Points | Source |
-|---|------|-------|---------------------|--------|
-| 1 | Open Deposit | User | Plan enabled, min/max bounds | §3.1 |
-| 2 | Withdraw at Maturity | User | Paused, active, mature, vault funded | §3.2 |
-| 3 | Early Withdraw | User | Paused, active, before maturity | §3.3 |
-| 4 | Manual Renew | User | Paused, active, at/past maturity | §3.4 |
-| 5 | Auto-Renew | Bot | Active, grace period expired | §3.5 |
-| 6 | Plan Management | Admin | Plan exists, valid inputs | §4 |
-| 7 | Vault & System | Admin | Balance check, pause state | §4 |
-| C1 | Principal Protection | User | Vault insufficient -> pay principal only | §8.3 C1 |
-| C2 | Solvency Guard | Admin | Withdraw would break obligations | §8.3 C2 |
-| C3 | Partial Early Withdraw | User | Amount within principal, partial penalty | §8.3 C3 |
-| C4 | Top-up Deposit | User | Active, not yet mature | §8.3 C4 |
+| # | Flow | Actor | Paused? | Status Allowed | Key Decision Points | Source |
+|---|------|-------|:-------:|----------------|---------------------|--------|
+| 1 | Open Deposit | User | No check | N/A | Plan exists/enabled, amount > 0, min/max | §3.1 |
+| 2 | Withdraw at Maturity | User | ✅ Blocked | Active only | Mature, status, interestClaimed | §3.2 |
+| 3 | Early Withdraw | User | No check | Active only | feeReceiver set | §3.3 |
+| 4 | Manual Renew | User | ✅ Blocked | Active, PrincipalClaimed | Mature, newPlanId exists/enabled | §3.4 |
+| 5 | Auto-Renew | Bot | ✅ Blocked | Active, PrincipalClaimed | Grace period expired | §3.5 |
+| 6 | Plan Management | Admin | No check | N/A | Plan exists, valid inputs | §4 |
+| 7 | Vault & System | Admin | Partial | N/A | Balance check, one-shot setter | §4 |
+| 8 | Claim Principal | User | No check | Active, Withdrawn | Mature, interestClaimed | §8.3 C1 |
+| 9 | Claim Interest | User | ✅ Blocked | Active, PrincipalClaimed | interestClaimed, vault balance, pending | §8.3 C1 |
+| 10 | Burn NFT | User | No check | Withdrawn+ | pendingInterest == 0 | §2.2, §8.3 C1 |
