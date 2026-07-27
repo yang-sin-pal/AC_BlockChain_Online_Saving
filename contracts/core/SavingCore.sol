@@ -209,6 +209,14 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
     }
 
+    // ---------- Modifiers ----------
+
+    /// @dev Verifies caller is the NFT owner of the given deposit.
+    modifier onlyDepositOwner(uint256 depositId) {
+        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        _;
+    }
+
     // ---------- User functions ----------
 
     /// @notice Opens a new term deposit for the given plan.
@@ -244,10 +252,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @dev Caller must be the NFT owner. Only works when neither principal nor interest
     ///      has been claimed yet. For partial claims, use claimPrincipal or claimInterest.
     /// @param depositId ID of the deposit to withdraw.
-    function withdrawAtMaturity(uint256 depositId) external nonReentrant whenNotPaused override {
+    function withdrawAtMaturity(uint256 depositId) external nonReentrant whenNotPaused onlyDepositOwner(depositId) override {
         Deposit storage deposit = deposits[depositId];
 
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.status == Status.PrincipalClaimed) revert SavingCore_UseClaimInterest();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
         if (deposit.interestClaimed) revert SavingCore_UseClaimPrincipal();
@@ -272,10 +279,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     ///      Interest is calculated and stored as pendingInterest — claim via claimInterest.
     ///      No whenNotPaused — user can always get their principal back.
     /// @param depositId ID of the matured deposit.
-    function claimPrincipal(uint256 depositId) external nonReentrant {
+    function claimPrincipal(uint256 depositId) external nonReentrant onlyDepositOwner(depositId) {
         Deposit storage deposit = deposits[depositId];
 
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.status == Status.PrincipalClaimed) revert SavingCore_PrincipalAlreadyClaimed();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
@@ -305,10 +311,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     ///      Supports partial vault payment — remainder stored as pendingInterest for retry.
     ///      Blocked when paused — defers interest payment until system resumes.
     /// @param depositId ID of the deposit to claim interest from.
-    function claimInterest(uint256 depositId) external nonReentrant whenNotPaused {
+    function claimInterest(uint256 depositId) external nonReentrant whenNotPaused onlyDepositOwner(depositId) {
         Deposit storage deposit = deposits[depositId];
 
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.interestClaimed) revert SavingCore_InterestAlreadyClaimed();
 
         uint256 amount;
@@ -351,8 +356,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @notice Burns the deposit NFT certificate.
     /// @dev Only callable after the deposit is withdrawn. Blocked if pending interest exists.
     /// @param depositId ID of the deposit whose NFT to burn.
-    function burn(uint256 depositId) external {
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+    function burn(uint256 depositId) external onlyDepositOwner(depositId) {
         if (deposits[depositId].status == Status.Active) revert SavingCore_AlreadyWithdrawn();
         _burn(depositId);
     }
@@ -361,10 +365,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @dev Caller must be the NFT owner. Penalty is sent to feeReceiver, not the vault.
     ///      Principal minus penalty is returned from SavingCore's own balance.
     /// @param depositId ID of the deposit to withdraw early.
-    function earlyWithdraw(uint256 depositId) external nonReentrant override {
+    function earlyWithdraw(uint256 depositId) external nonReentrant onlyDepositOwner(depositId) override {
         Deposit storage deposit = deposits[depositId];
 
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
         if (vaultManager.feeReceiver() == address(0)) revert SavingCore_FeeReceiverNotSet();
 
@@ -393,13 +396,12 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         external
         nonReentrant
         whenNotPaused
+        onlyDepositOwner(depositId)
         override
         returns (uint256)
     {
         Deposit storage oldDeposit = deposits[depositId];
 
-        // Only NFT owner can renew (BR-06)
-        if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
         if (oldDeposit.status == Status.Withdrawn ||
             oldDeposit.status == Status.ManualRenewed ||
             oldDeposit.status == Status.AutoRenewed) revert SavingCore_AlreadyWithdrawn();
