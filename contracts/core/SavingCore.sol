@@ -156,25 +156,15 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         return depositId;
     }
 
-    // ---------- Internal CEI helpers ----------
+    // ---------- Internal helpers ----------
 
     /// @notice Calculates interest for a deposit using snapshotted APR and plan tenor.
-    /// @dev These helpers MUST remain free of external calls because multiple functions
-    ///      rely on them for CEI. Pure delegation to InterestLib — no storage writes.
+    /// @dev Pure delegation to InterestLib — no storage writes, no external calls.
     /// @param depositId ID of the deposit to calculate interest for.
     /// @return Interest in USDC units.
     function _calcInterest(uint256 depositId) internal view returns (uint256) {
         Deposit storage d = deposits[depositId];
         return InterestLib.calculateInterest(d.principal, d.aprBpsAtOpen, plans[d.planId].tenorDays);
-    }
-
-    /// @notice Updates the principal lifecycle status of a deposit.
-    /// @dev These helpers MUST remain free of external calls because multiple functions
-    ///      rely on them for CEI. Only writes to storage — no external calls.
-    /// @param depositId ID of the deposit to update.
-    /// @param newStatus The new principal lifecycle status.
-    function _settlePrincipal(uint256 depositId, Status newStatus) internal {
-        deposits[depositId].status = newStatus;
     }
 
     /// @notice Collects remaining principal and interest for a renewal.
@@ -265,7 +255,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint256 interest = _calcInterest(depositId);
 
         // CEI: update state BEFORE external calls (code-convention.md §7)
-        _settlePrincipal(depositId, Status.Withdrawn);
+        deposits[depositId].status = Status.Withdrawn;
 
         usdc.safeTransfer(msg.sender, principal);
         vaultManager.payInterest(msg.sender, interest);
@@ -291,12 +281,12 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         // CEI: update state BEFORE external calls
         if (deposit.interestClaimed) {
             // Interest already claimed — both done → terminal
-            _settlePrincipal(depositId, Status.Withdrawn);
+            deposits[depositId].status = Status.Withdrawn;
         } else {
             // Interest not yet claimed → store as pending, status = PrincipalClaimed
             uint256 interest = _calcInterest(depositId);
             pendingInterest[depositId] = interest;
-            _settlePrincipal(depositId, Status.PrincipalClaimed);
+            deposits[depositId].status = Status.PrincipalClaimed;
         }
 
         usdc.safeTransfer(msg.sender, principal);
@@ -415,7 +405,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint256 newPrincipal = _collectRenewalPrincipal(depositId);
 
         // CEI: update old deposit status BEFORE external calls
-        _settlePrincipal(depositId, Status.ManualRenewed);
+        deposits[depositId].status = Status.ManualRenewed;
 
         // Mint new deposit with NEW plan's parameters
         Plan storage newPlan = plans[newPlanId];
@@ -453,7 +443,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint256 newPrincipal = _collectRenewalPrincipal(depositId);
 
         // CEI: update old deposit status BEFORE external calls
-        _settlePrincipal(depositId, Status.AutoRenewed);
+        deposits[depositId].status = Status.AutoRenewed;
 
         // Mint new deposit with same plan (same tenor + locked APR)
         uint256 newDepositId = _createDeposit(
