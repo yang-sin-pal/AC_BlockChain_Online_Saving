@@ -88,8 +88,7 @@ describe("SavingCore — autoRenewDeposit", function () {
   // ─── 5. Before grace period → revert ───────────────────────────
 
   it("#5 — before grace period (gracePeriodEnd - 1 second) → reverts GracePeriodNotElapsed", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithMaturedDepositPastGrace);
-    const { savingCore: sc2 } = await loadFixture(fixtureWithPlan);
+    const { savingCore: sc2, user } = await loadFixture(fixtureWithPlan);
 
     // Open a fresh deposit in a separate fixture so we can manipulate time freely
     const amount = toUSDC(10_000);
@@ -171,7 +170,7 @@ describe("SavingCore — autoRenewDeposit", function () {
     expect(event!.args.newPlanId).to.equal(0); // same plan
   });
 
-  // ─── 10. No double interest after claimInterest ───────────────
+  // ─── 10. autoRenewDeposit after claimInterest → principal only (no double interest) ──
 
   it("#10 — autoRenewDeposit after claimInterest → new principal = old principal only (no double interest)", async function () {
     const { savingCore, user, vaultManager } = await loadFixture(fixtureWithMaturedDepositPastGrace);
@@ -196,5 +195,74 @@ describe("SavingCore — autoRenewDeposit", function () {
     // New deposit principal = old principal only (no interest compounded)
     const newDeposit = await savingCore.deposits(1);
     expect(newDeposit.principal).to.equal(depositBefore.principal);
+  });
+
+  // ─── 11. autoRenewDeposit after claimPrincipal → compounds pending interest ──
+
+  it("#11 — autoRenewDeposit after claimPrincipal → compounds pending interest only", async function () {
+    const { savingCore, user, vaultManager } = await loadFixture(fixtureWithMaturedDepositPastGrace);
+
+    // claimPrincipal at maturity (need to set time back)
+    const deposit = await savingCore.deposits(0);
+    await ethers.provider.send("evm_setNextBlockTimestamp", [Number(deposit.maturityAt)]);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest);
+
+    // Advance past grace period
+    await increaseTime(GRACE_PERIOD * SECONDS_PER_DAY);
+
+    const vaultBalBefore = await vaultManager.vaultBalance();
+    await savingCore.connect(user).autoRenewDeposit(0);
+    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    // Vault paid the pending interest
+    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
+
+    // New deposit principal = interest only
+    const newDeposit = await savingCore.deposits(1);
+    expect(newDeposit.principal).to.equal(expectedInterest);
+    expect(await savingCore.pendingInterest(0)).to.equal(0n);
+  });
+
+  // ─── 12. autoRenewDeposit after full claim → reverts AlreadyWithdrawn ──
+
+  it("#12 — autoRenewDeposit after claimPrincipal+claimInterest → reverts AlreadyWithdrawn", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithMaturedDepositPastGrace);
+
+    await savingCore.connect(user).claimInterest(0);
+    await increaseTime(GRACE_PERIOD * SECONDS_PER_DAY);
+    await savingCore.connect(user).autoRenewDeposit(0);
+
+    // Now try again on the new deposit? No — on old deposit (status=AutoRenewed)
+    await expect(
+      savingCore.connect(user).autoRenewDeposit(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+  });
+
+  // ─── 13. autoRenewDeposit by non-owner → succeeds (bot trigger) ──
+
+  it("#13 — autoRenewDeposit by non-owner → succeeds (bot can trigger)", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithMaturedDepositPastGrace);
+    const [, , bot] = await ethers.getSigners();
+
+    // Bot triggers auto-renew
+    await savingCore.connect(bot).autoRenewDeposit(0);
+
+    // New deposit minted to the bot (msg.sender)
+    expect(await savingCore.ownerOf(1)).to.equal(await bot.getAddress());
+  });
+
+  // ─── 14. autoRenewDeposit when paused → revert ───────────────
+
+  it("#14 — autoRenewDeposit when paused → reverts EnforcedPause", async function () {
+    const { savingCore, owner, user } = await loadFixture(fixtureWithMaturedDepositPastGrace);
+
+    await savingCore.connect(owner).pause();
+
+    await expect(
+      savingCore.connect(user).autoRenewDeposit(0),
+    ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
   });
 });

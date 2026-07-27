@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { fixtureWithPlan } from "../../helpers/fixtures";
-import { toUSDC, calculateExpectedInterest } from "../../helpers/utils";
+import { toUSDC, increaseTime, calculateExpectedInterest } from "../../helpers/utils";
 import {
   DEFAULT_TENOR,
   DEFAULT_APR,
@@ -31,7 +31,7 @@ describe("SavingCore — renewDeposit", function () {
 
     await savingCore.connect(user).renewDeposit(depositId, secondPlanId);
 
-    // Old deposit status → ManualRenewed (enum 2)
+    // Old deposit status → ManualRenewed (enum 3)
     const oldDeposit = await savingCore.deposits(depositId);
     expect(oldDeposit.status).to.equal(3); // Status.ManualRenewed
 
@@ -170,5 +170,78 @@ describe("SavingCore — renewDeposit", function () {
     expect(event!.args.newDepositId).to.equal(depositId + 1n);
     expect(event!.args.newPrincipal).to.equal(expectedNewPrincipal);
     expect(event!.args.newPlanId).to.equal(secondPlanId);
+  });
+
+  // ─── 11. renewDeposit after claimPrincipal → compounds remaining principal + pending interest ──
+
+  it("#11 — renewDeposit after claimPrincipal → compounds pending interest only (principal already claimed)", async function () {
+    const { savingCore, usdc, owner, user, vaultManager, depositId, secondPlanId } = await loadFixture(fixtureWithMaturedDeposit);
+
+    // First go back to before maturity to call claimPrincipal (needs matured deposit)
+    const deposit = await savingCore.deposits(depositId);
+    const maturityAt = Number(deposit.maturityAt);
+    await ethers.provider.send("evm_setNextBlockTimestamp", [maturityAt]);
+
+    // claimPrincipal → pays principal, stores interest as pending
+    await savingCore.connect(user).claimPrincipal(depositId);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+    expect(await savingCore.pendingInterest(depositId)).to.equal(expectedInterest);
+
+    // Now renew with secondPlanId → only interest contributes as principal
+    const vaultBalBefore = await vaultManager.vaultBalance();
+    const newDepositId = await savingCore.connect(user).renewDeposit.staticCall(depositId, secondPlanId);
+    await savingCore.connect(user).renewDeposit(depositId, secondPlanId);
+
+    const oldDepositAfter = await savingCore.deposits(depositId);
+    expect(oldDepositAfter.status).to.equal(3); // ManualRenewed
+
+    const newDeposit = await savingCore.deposits(newDepositId);
+    expect(newDeposit.principal).to.equal(expectedInterest);
+    expect(newDeposit.aprBpsAtOpen).to.equal(600); // secondPlan APR
+
+    // Vault paid the interest
+    const vaultBalAfter = await vaultManager.vaultBalance();
+    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
+  });
+
+  // ─── 12. renewDeposit after claimInterest → principal only ──
+
+  it("#12 — renewDeposit after claimInterest → new principal = old principal only", async function () {
+    const { savingCore, user, depositId, secondPlanId } = await loadFixture(fixtureWithMaturedDeposit);
+
+    await savingCore.connect(user).claimInterest(depositId);
+
+    await savingCore.connect(user).renewDeposit(depositId, secondPlanId);
+
+    const newDeposit = await savingCore.deposits(depositId + 1n);
+    expect(newDeposit.principal).to.equal(toUSDC(10_000));
+  });
+
+  // ─── 13. renewDeposit when both principal+interest claimed → reverts AlreadyWithdrawn ──
+
+  it("#13 — renewDeposit after full claim (both claimed) → reverts AlreadyWithdrawn", async function () {
+    const { savingCore, user, depositId, secondPlanId } = await loadFixture(fixtureWithMaturedDeposit);
+
+    await savingCore.connect(user).claimPrincipal(depositId);
+    await savingCore.connect(user).claimInterest(depositId);
+
+    await expect(
+      savingCore.connect(user).renewDeposit(depositId, secondPlanId),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+  });
+
+  // ─── 14. renewDeposit on earlyWithdrawn → revert ─────────────
+
+  it("#14 — renewDeposit on earlyWithdrawn deposit → reverts AlreadyWithdrawn", async function () {
+    const { savingCore, user, depositId, secondPlanId } = await loadFixture(fixtureWithMaturedDeposit);
+
+    // Set to before maturity for earlyWithdraw
+    await ethers.provider.send("evm_setNextBlockTimestamp", [Number((await savingCore.deposits(depositId)).maturityAt) - 1]);
+    await savingCore.connect(user).earlyWithdraw(depositId);
+
+    // Now try renew → revert (need to be mature)
+    await expect(
+      savingCore.connect(user).renewDeposit(depositId, secondPlanId),
+    ).to.be.reverted;
   });
 });

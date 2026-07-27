@@ -209,112 +209,111 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     }
 
     /// @notice Withdraws principal + interest at or after maturity.
-    /// @dev Caller must be the NFT owner. Interest is paid from the vault.
-    ///      If interest was already claimed, pays principal only (no vault call).
-    ///      Principal is always returned from SavingCore's own balance.
+    /// @dev Caller must be the NFT owner. Only works when neither principal nor interest
+    ///      has been claimed yet. For partial claims, use claimPrincipal or claimInterest.
     /// @param depositId ID of the deposit to withdraw.
     function withdrawAtMaturity(uint256 depositId) external nonReentrant whenNotPaused override {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.status == Status.PrincipalClaimed) revert SavingCore_UseClaimInterest();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        if (deposit.interestClaimed) revert SavingCore_UseClaimPrincipal();
         // Design Q5: >= boundary — at the exact maturity second, withdrawal is allowed
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
         uint256 principal = deposit.principal;
+        uint256 interest = _calcInterest(depositId);
 
         // CEI: update state BEFORE external calls (code-convention.md §7)
         _settlePrincipal(depositId, Status.Withdrawn);
-        usdc.safeTransfer(msg.sender, principal);
 
-        if (deposit.interestClaimed) {
-            // Interest already paid out — principal only, no vault call
-            emit Events.Withdrawn(depositId, msg.sender, principal, 0, false);
-        } else {
-            // Full withdrawal: principal + interest from vault
-            uint256 interest = _calcInterest(depositId);
-            vaultManager.payInterest(msg.sender, interest);
-            emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
-        }
+        usdc.safeTransfer(msg.sender, principal);
+        vaultManager.payInterest(msg.sender, interest);
+
+        emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
     }
 
     /// @notice Claims principal at maturity without depending on vault balance.
     /// @dev C1: for use when the system is paused or the vault is empty.
-    ///      If interest was already claimed, pays principal only (no vault call).
-    ///      When paused: interest is fully deferred to pendingInterest (vault untouched).
-    ///      When not paused: pays from vault if possible, records shortfall as pending.
+    ///      Principal is always paid from SavingCore's own balance.
+    ///      Interest is calculated and stored as pendingInterest — claim via claimInterest.
     ///      No whenNotPaused — user can always get their principal back.
     /// @param depositId ID of the matured deposit.
     function claimPrincipal(uint256 depositId) external nonReentrant {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.status == Status.PrincipalClaimed) revert SavingCore_PrincipalAlreadyClaimed();
         if (deposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
 
         uint256 principal = deposit.principal;
 
         // CEI: update state BEFORE external calls
-        _settlePrincipal(depositId, Status.PrincipalClaimed);
+        if (deposit.interestClaimed) {
+            // Interest already claimed — both done → terminal
+            _settlePrincipal(depositId, Status.Withdrawn);
+        } else {
+            // Interest not yet claimed → store as pending, status = PrincipalClaimed
+            uint256 interest = _calcInterest(depositId);
+            pendingInterest[depositId] = interest;
+            _settlePrincipal(depositId, Status.PrincipalClaimed);
+        }
+
         usdc.safeTransfer(msg.sender, principal);
 
-        if (deposit.interestClaimed) {
-            // Interest already paid out — principal only, no vault call
-            emit Events.Withdrawn(depositId, msg.sender, principal, 0, false);
-        } else {
-            uint256 interest = _calcInterest(depositId);
-
-            // 2. Interest: during pause, defer entirely (don't touch vault);
-            //    otherwise, pay from vault if possible, record shortfall as pending
-            if (paused()) {
-                pendingInterest[depositId] = interest;
-            } else {
-                uint256 vaultBal = vaultManager.vaultBalance();
-                if (vaultBal >= interest) {
-                    vaultManager.payInterest(msg.sender, interest);
-                } else if (vaultBal > 0) {
-                    vaultManager.payInterest(msg.sender, vaultBal);
-                    pendingInterest[depositId] = interest - vaultBal;
-                } else {
-                    pendingInterest[depositId] = interest;
-                }
-            }
-
-            emit Events.Withdrawn(depositId, msg.sender, principal, interest, false);
-        }
+        emit Events.Withdrawn(depositId, msg.sender, principal, 0, false);
     }
 
     /// @notice Claims interest from a deposit.
     /// @dev Two paths:
-    ///      - Active & mature & not yet claimed: pays full interest from vault, sets interestClaimed = true.
-    ///      - Non-Active (e.g. after claimPrincipal): pays remaining pendingInterest from vault.
+    ///      - Active & mature & not yet claimed: calculates interest, pays from vault.
+    ///      - PrincipalClaimed: pays remaining pendingInterest from vault.
+    ///      Supports partial vault payment — remainder stored as pendingInterest for retry.
     ///      Blocked when paused — defers interest payment until system resumes.
     /// @param depositId ID of the deposit to claim interest from.
     function claimInterest(uint256 depositId) external nonReentrant whenNotPaused {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+        if (deposit.interestClaimed) revert SavingCore_InterestAlreadyClaimed();
 
         uint256 amount;
 
-        if (deposit.status == Status.Active && !deposit.interestClaimed) {
-            // Path A: full interest claim at maturity — principal stays in SavingCore
+        if (deposit.status == Status.Active) {
+            // Path A: interest not yet claimed, calculate from vault
             if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
-
             amount = _calcInterest(depositId);
-
-            // CEI: update state BEFORE external calls
-            deposit.interestClaimed = true;
-        } else {
-            // Path B: pending interest from a previous partial withdrawal (C1)
+        } else if (deposit.status == Status.PrincipalClaimed) {
+            // Path B: principal already claimed, pay from pending
             amount = pendingInterest[depositId];
             if (amount == 0) revert SavingCore_NoPendingInterest();
             pendingInterest[depositId] = 0;
+        } else {
+            revert SavingCore_AlreadyWithdrawn();
         }
 
-        vaultManager.payInterest(msg.sender, amount);
+        // CEI: state before vault call
+        uint256 vaultBal = vaultManager.vaultBalance();
+        uint256 payAmount = vaultBal >= amount ? amount : vaultBal;
+        uint256 remainder = amount - payAmount;
 
-        emit Events.InterestClaimed(depositId, msg.sender, amount);
+        pendingInterest[depositId] = remainder;
+
+        if (remainder == 0) {
+            deposit.interestClaimed = true;
+            if (deposit.status == Status.PrincipalClaimed) {
+                deposit.status = Status.Withdrawn;
+            }
+        }
+
+        // Interactions
+        if (payAmount > 0) {
+            vaultManager.payInterest(msg.sender, payAmount);
+        }
+
+        emit Events.InterestClaimed(depositId, msg.sender, payAmount);
     }
 
     /// @notice Burns the deposit NFT certificate.
@@ -352,8 +351,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     }
 
     /// @notice Manually renews a matured deposit into a new plan.
-    /// @dev Only callable by the NFT owner. Interest is compounded from the vault
-    ///      into the new deposit. The new plan's rate and tenor apply.
+    /// @dev Only callable by the NFT owner. Allows renewal when principal or interest
+    ///      has been partially claimed — compounds whatever remains.
+    ///      The new plan's rate and tenor apply.
     /// @param depositId ID of the old deposit.
     /// @param newPlanId ID of the new plan to renew into.
     /// @return newDepositId ID of the newly minted deposit.
@@ -368,7 +368,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
         // Only NFT owner can renew (BR-06)
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
-        if (oldDeposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        if (oldDeposit.status == Status.Withdrawn ||
+            oldDeposit.status == Status.ManualRenewed ||
+            oldDeposit.status == Status.AutoRenewed) revert SavingCore_AlreadyWithdrawn();
         // Same >= boundary as withdrawAtMaturity (Design Q5)
         if (block.timestamp < oldDeposit.maturityAt) revert SavingCore_NotYetMature();
 
@@ -376,18 +378,30 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         if (newPlanId >= nextPlanId) revert SavingCore_PlanNotFound();
         if (!plans[newPlanId].enabled) revert SavingCore_PlanNotEnabled();
 
-        // Interest uses snapshotted APR from old deposit (BR-04)
-        uint256 interest = _calcInterest(depositId);
-        uint256 newPrincipal;
+        uint256 newPrincipal = 0;
 
-        if (oldDeposit.interestClaimed) {
-            // Interest already paid out — principal stays in SavingCore, no vault call
-            newPrincipal = oldDeposit.principal;
-        } else {
-            // Active: compound principal + interest from vault
-            newPrincipal = oldDeposit.principal + interest;
-            vaultManager.payInterest(address(this), interest);
+        // Principal contribution
+        if (oldDeposit.status != Status.PrincipalClaimed) {
+            newPrincipal += oldDeposit.principal;
         }
+
+        // Interest contribution
+        if (!oldDeposit.interestClaimed) {
+            if (oldDeposit.status == Status.PrincipalClaimed) {
+                // Interest is in pendingInterest — pull from vault into SavingCore
+                uint256 interest = pendingInterest[depositId];
+                pendingInterest[depositId] = 0;
+                vaultManager.payInterest(address(this), interest);
+                newPrincipal += interest;
+            } else {
+                // Active: compound principal + interest from vault
+                uint256 interest = _calcInterest(depositId);
+                vaultManager.payInterest(address(this), interest);
+                newPrincipal += interest;
+            }
+        }
+
+        if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
 
         // CEI: update old deposit status BEFORE external calls
         _settlePrincipal(depositId, Status.ManualRenewed);
@@ -408,8 +422,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     }
 
     /// @notice Auto-renews a matured deposit after the grace period has elapsed.
-    /// @dev Can be called by anyone (bot or user). If interest has already been claimed,
-    ///      renews with principal only (no vault call). Otherwise compounds principal + interest.
+    /// @dev Can be called by anyone (bot or user). Allows renewal when principal or interest
+    ///      has been partially claimed — compounds whatever remains.
     ///      APR is locked to the original aprBpsAtOpen (BR-15).
     /// @param depositId ID of the deposit to auto-renew.
     /// @return newDepositId ID of the newly minted deposit.
@@ -417,24 +431,36 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         Deposit storage oldDeposit = deposits[depositId];
 
         // No owner check — anyone can trigger auto-renew (§3.5: "A bot calls this")
-        if (oldDeposit.status != Status.Active) revert SavingCore_AlreadyWithdrawn();
+        if (oldDeposit.status == Status.Withdrawn ||
+            oldDeposit.status == Status.ManualRenewed ||
+            oldDeposit.status == Status.AutoRenewed) revert SavingCore_AlreadyWithdrawn();
 
         // Grace period: maturityAt + 4 days (personal variant)
         uint256 gracePeriodEnd = uint256(oldDeposit.maturityAt) + uint256(personalGracePeriod) * 86400;
         if (block.timestamp < gracePeriodEnd) revert SavingCore_GracePeriodNotElapsed();
 
-        // Interest uses snapshotted APR from old deposit (BR-15) — NOT current plan APR
-        uint256 interest = _calcInterest(depositId);
-        uint256 newPrincipal;
+        uint256 newPrincipal = 0;
 
-        if (oldDeposit.interestClaimed) {
-            // Interest already paid out — principal stays in SavingCore, no vault call
-            newPrincipal = oldDeposit.principal;
-        } else {
-            // Active: compound principal + interest from vault
-            newPrincipal = oldDeposit.principal + interest;
-            vaultManager.payInterest(address(this), interest);
+        // Principal contribution
+        if (oldDeposit.status != Status.PrincipalClaimed) {
+            newPrincipal += oldDeposit.principal;
         }
+
+        // Interest contribution
+        if (!oldDeposit.interestClaimed) {
+            if (oldDeposit.status == Status.PrincipalClaimed) {
+                uint256 interest = pendingInterest[depositId];
+                pendingInterest[depositId] = 0;
+                vaultManager.payInterest(address(this), interest);
+                newPrincipal += interest;
+            } else {
+                uint256 interest = _calcInterest(depositId);
+                vaultManager.payInterest(address(this), interest);
+                newPrincipal += interest;
+            }
+        }
+
+        if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
 
         // CEI: update old deposit status BEFORE external calls
         _settlePrincipal(depositId, Status.AutoRenewed);

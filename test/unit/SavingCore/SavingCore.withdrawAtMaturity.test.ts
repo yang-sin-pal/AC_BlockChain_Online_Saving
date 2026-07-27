@@ -242,23 +242,29 @@ describe("SavingCore — withdrawAtMaturity", function () {
     expect(interestPaid).to.equal(expectedInterest);
   });
 
-  // ─── 13. After claimInterest → principal only ──────────────────
+  // ─── 13. withdrawAtMaturity after claimInterest → reverts UseClaimPrincipal ──
 
-  it("#13 — withdrawAtMaturity after claimInterest → pays principal only, vault unchanged", async function () {
-    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+  it("#13 — withdrawAtMaturity after claimInterest → reverts UseClaimPrincipal", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimInterest(0);
 
-    const userBalBefore = await usdc.balanceOf(await user.getAddress());
-    const vaultBalBefore = await vaultManager.vaultBalance();
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_UseClaimPrincipal");
+  });
 
-    await savingCore.connect(user).withdrawAtMaturity(0);
+  // ─── 14. withdrawAtMaturity after claimPrincipal → reverts UseClaimInterest ──
 
-    const userBalAfter = await usdc.balanceOf(await user.getAddress());
-    const vaultBalAfter = await vaultManager.vaultBalance();
+  it("#14 — withdrawAtMaturity after claimPrincipal → reverts UseClaimInterest", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
-    expect(userBalAfter).to.equal(userBalBefore + toUSDC(10_000));
-    expect(vaultBalAfter).to.equal(vaultBalBefore);
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    await expect(
+      savingCore.connect(user).withdrawAtMaturity(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_UseClaimInterest");
   });
 });

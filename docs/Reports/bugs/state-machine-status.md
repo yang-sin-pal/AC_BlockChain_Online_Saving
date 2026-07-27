@@ -1,82 +1,99 @@
 # Deposit State Machine — Status Enum & Interest Flag
 
 > Auto-generated from `contracts/core/SavingCore.sol` (post-refactor) and verified against
-> 127 passing unit tests in `test/unit/SavingCore/`.
+> 142 passing unit tests in `test/unit/SavingCore/`.
 
 ---
 
 ## 1. Status Enum Reference
 
-| Value | Name             | Semantics                                                       | Set by                                      |
-|-------|------------------|-----------------------------------------------------------------|---------------------------------------------|
-| 0     | `Active`         | Principal locked in SavingCore. Deposit is live.                | `_createDeposit` (initial)                  |
-| 1     | `Withdrawn`      | Principal + interest fully settled. Terminal state.             | `withdrawAtMaturity`, `earlyWithdraw`       |
-| 2     | `PrincipalClaimed` | Principal paid out; interest may still be pending.           | `claimPrincipal`                            |
-| 3     | `ManualRenewed`  | User renewed into a new plan. Terminal state.                   | `renewDeposit`                              |
-| 4     | `AutoRenewed`    | Auto-renewed after grace period. Terminal state.                | `autoRenewDeposit`                          |
+| Value | Name               | Semantics                                                        | Set by                                         |
+|-------|--------------------|------------------------------------------------------------------|------------------------------------------------|
+| 0     | `Active`           | Principal locked in SavingCore. Deposit is live.                 | `_createDeposit` (initial)                     |
+| 1     | `Withdrawn`        | Principal + interest fully settled. Terminal state.              | `withdrawAtMaturity`, `earlyWithdraw`, `claimPrincipal` (when interestClaimed), `claimInterest` (when PrincipalClaimed + full payment) |
+| 2     | `PrincipalClaimed` | Principal paid out; interest is pending as `pendingInterest`.    | `claimPrincipal`                               |
+| 3     | `ManualRenewed`    | User renewed into a new plan. Terminal state.                    | `renewDeposit`                                 |
+| 4     | `AutoRenewed`      | Auto-renewed after grace period. Terminal state.                 | `autoRenewDeposit`                             |
 
 ### Separated Concern: `interestClaimed` (bool)
 
-| Value | Meaning                                                       | Set by                                 |
-|-------|---------------------------------------------------------------|----------------------------------------|
-| false | Interest has NOT been claimed on this deposit.                | `_createDeposit` (initial)             |
-| true  | Interest HAS been claimed. Status stays `Active`.             | `claimInterest` (Path A)               |
+| Value | Meaning                                                       | Set by                                                        |
+|-------|---------------------------------------------------------------|---------------------------------------------------------------|
+| false | Interest has NOT been claimed on this deposit.                | `_createDeposit` (initial)                                    |
+| true  | Interest HAS been fully claimed.                              | `claimInterest` (full payment — both Path A and Path B)       |
 
 **Key invariant:** `interestClaimed = true` + `status = Active` means principal is still
-locked in SavingCore but interest has been paid out. This combination causes
-`withdrawAtMaturity`, `claimPrincipal`, `autoRenewDeposit`, and `renewDeposit` to operate
-with principal only (no vault call, no compound).
+locked in SavingCore but interest has been paid out. `withdrawAtMaturity` and `claimPrincipal`
+revert with `UseClaimPrincipal` / `UseClaimInterest` to guide users to the correct function.
+
+### Interest Payment Model
+
+Interest can be paid in **two independent steps**:
+1. **claimPrincipal** — pays principal from SavingCore balance (no vault). Interest is calculated and stored as `pendingInterest[depositId]`. No `whenNotPaused` (C1 guarantee).
+2. **claimInterest** — pays interest from VaultManager. Supports **partial vault payment**: if vault balance < amount, pays what's available, stores remainder as `pendingInterest`, `interestClaimed` stays `false` (allows retry).
+
+The `withdrawAtMaturity` function is a convenience shortcut that pays both principal + interest in one call, but **only when neither has been claimed yet**.
 
 ---
 
 ## 2. State Diagram
 
 ```
-                            ┌──────────────────────────────┐
-                            │          Active              │
-                            │   (interestClaimed=false)    │
-                            └──┬──────┬──────┬──────┬──────┘
-                               │      │      │      │
-        withdrawAtMaturity     │      │   renewDeposit  autoRenewDeposit
-        (vault pays int)       │      │   (compound)    (compound, anyone)
-                               │      │      │      │
-                               ▼      │      │      │
-                          Withdrawn   │      │      │
-                               ✗      │      │      │
-                            burn OK   │      │      │
-                                      │      │      │
-                    claimPrincipal    │      │      │
-                    (C1: safe exit)   │      │      │
-                                      ▼      ▼      ▼
-                               Principal  Manual   Auto
-                                Claimed  Renewed  Renewed
-                                  ✗        ✗        ✗
-                               burn OK   burn OK  burn OK
+                          ┌──────────────────────────────┐
+                          │          Active              │
+                          │   (interestClaimed=false)    │
+                          └──┬─────┬─────┬─────┬─────┬───┘
+                             │     │     │     │     │
+  withdrawAtMaturity         │     │  renewDeposit  autoRenewDeposit
+  (principal+interest)       │     │  (compound)    (compound, anyone)
+                             │     │     │     │     │
+                             ▼     │     │     │     │
+                        Withdrawn  │     │     │     │
+                             ✗     │     │     │     │
+                          burn OK  │     │     │     │
+                                   │     │     │     │
+                    claimPrincipal │     │     │     │
+                    (C1: principal │     │     │     │
+                     only, always  ▼     ▼     ▼     ▼
+                     available)  Principal  Manual  Auto
+                                  Claimed  Renewed Renewed
+                                   ✗         ✗       ✗
+                                burn OK*  burn OK  burn OK
 
   ──────────────────────────────────────────────────────────────────
   INTEREST FLAG (parallel axis, does NOT change Status) :
 
-  claimInterest Path A (Active, not yet claimed):
+  claimInterest Path A (Active, mature, not yet claimed):
     Active ──→ Active  [interestClaimed: false → true]
 
-  claimInterest Path B (after PrincipalClaimed, pending > 0):
-    PrincipalClaimed ──→ PrincipalClaimed  [pendingInterest cleared to 0]
+  claimInterest Path B (PrincipalClaimed, pending > 0):
+    PrincipalClaimed ──→ Withdrawn  [interestClaimed: true, pending cleared]
+
+  claimInterest partial (any state, vault < amount):
+    No status change  [pendingInterest += remainder, interestClaimed stays false]
+
+  * burn blocked when pendingInterest > 0
 ```
 
 ### Transition Table
 
-| From State | Guard(s)                              | Function              | To State        | interestClaimed |
-|------------|---------------------------------------|-----------------------|-----------------|-----------------|
-| Active     | `>= maturityAt`                       | `withdrawAtMaturity`  | Withdrawn       | —               |
-| Active     | `>= maturityAt`                       | `claimPrincipal`      | PrincipalClaimed| —               |
-| Active     | `>= maturityAt`, `!interestClaimed`   | `claimInterest` (A)   | Active          | true            |
-| Active     | `feeReceiver set`                     | `earlyWithdraw`       | Withdrawn       | —               |
-| Active     | `>= maturityAt`                       | `renewDeposit`        | ManualRenewed   | —               |
-| Active     | `>= maturityAt + 4 days`              | `autoRenewDeposit`    | AutoRenewed     | —               |
-| Active     | `interestClaimed=true`                | `renewDeposit`        | ManualRenewed   | — (principal only) |
-| Active     | `interestClaimed=true`, `>= maturityAt + 4 days` | `autoRenewDeposit` | AutoRenewed | — (principal only) |
-| Active     | `interestClaimed=true`, `>= maturityAt` | `withdrawAtMaturity`  | Withdrawn       | — (principal only) |
-| Active     | `interestClaimed=true`, `>= maturityAt` | `claimPrincipal`      | PrincipalClaimed| — (principal only) |
+| From State       | Guard(s)                                       | Function              | To State        | Notes                    |
+|------------------|------------------------------------------------|-----------------------|-----------------|--------------------------|
+| Active           | `>= maturityAt`                                | `withdrawAtMaturity`  | Withdrawn       | principal + interest     |
+| Active           | `>= maturityAt`                                | `claimPrincipal`      | PrincipalClaimed| interest → pending       |
+| Active           | `>= maturityAt`                                | `claimInterest` (A)   | Active          | interestClaimed=true     |
+| Active           | `feeReceiver set`                              | `earlyWithdraw`       | Withdrawn       | penalty only, no vault   |
+| Active           | `>= maturityAt`                                | `renewDeposit`        | ManualRenewed   | compound principal+int   |
+| Active           | `>= maturityAt + 4 days`                       | `autoRenewDeposit`    | AutoRenewed     | compound, anyone can call|
+| Active           | `interestClaimed=true` + `>= maturityAt`       | `withdrawAtMaturity`  | → reverts UseClaimPrincipal | |
+| Active           | `interestClaimed=true` + `>= maturityAt`       | `claimPrincipal`      | Withdrawn       | principal only, no vault |
+| PrincipalClaimed | `>= maturityAt`                                | `claimInterest` (B)   | Withdrawn       | pays pending, full → Withdrawn |
+| PrincipalClaimed | `>= maturityAt`                                | `renewDeposit`        | ManualRenewed   | renew with interest only |
+| PrincipalClaimed | `>= maturityAt + 4 days`                       | `autoRenewDeposit`    | AutoRenewed     | renew with interest only |
+| PrincipalClaimed | `interestClaimed=true`                         | `claimInterest`       | → reverts InterestAlreadyClaimed | |
+| Withdrawn        | any                                            | any state change      | → reverts AlreadyWithdrawn | terminal |
+| ManualRenewed    | any                                            | any state change      | → reverts AlreadyWithdrawn | terminal |
+| AutoRenewed      | any                                            | any state change      | → reverts AlreadyWithdrawn | terminal |
 
 ---
 
@@ -103,17 +120,6 @@ flowchart TD
 ```
 
 **Test coverage:** `SavingCore.openDeposit.test.ts` — 11 tests
-- #1  — happy path: deposit created, NFT minted, tokens transferred
-- #2  — emits DepositOpened with correct args
-- #3  — APR snapshot: updatePlan after open does not change deposit's aprBpsAtOpen
-- #4  — disabled plan → reverts PlanNotEnabled
-- #5  — amount below minDeposit → reverts DepositBelowMin
-- #6  — amount above maxDeposit → reverts DepositAboveMax
-- #7  — zero amount → reverts ZeroAmount
-- #8  — nonexistent planId → reverts PlanNotFound
-- #9  — maturityAt equals block.timestamp + tenorDays * 86400
-- #10 — multiple deposits: nextDepositId increments, each gets unique NFT
-- #11 — tokens go to SavingCore, not VaultManager
 
 ---
 
@@ -123,33 +129,21 @@ flowchart TD
 flowchart TD
     A[withdrawAtMaturity] --> B{msg.sender == ownerOf?}
     B -- No --> R1[revert NotOwner]
-    B -- Yes --> C{status == Active?}
-    C -- No --> R2[revert AlreadyWithdrawn]
-    C -- Yes --> D{timestamp >= maturityAt?}
-    D -- No --> R3[revert NotYetMature]
-    D -- Yes --> E[CEI: _settlePrincipal Withdrawn]
-    E --> F[safeTransfer principal to user]
-    F --> G{interestClaimed?}
-    G -- Yes --> H[emit Withdrawn interest=0]
-    G -- No --> I[interest = _calcInterest]
-    I --> J[vaultManager.payInterest interest to user]
-    J --> K[emit Withdrawn interest]
+    B -- Yes --> C{status == PrincipalClaimed?}
+    C -- Yes --> R2[revert UseClaimInterest]
+    C -- No --> D{status != Active?}
+    D -- Yes --> R3[revert AlreadyWithdrawn]
+    D -- No --> E{interestClaimed?}
+    E -- Yes --> R4[revert UseClaimPrincipal]
+    E -- No --> F{timestamp >= maturityAt?}
+    F -- No --> R5[revert NotYetMature]
+    F -- Yes --> G[CEI: _settlePrincipal Withdrawn]
+    G --> H[safeTransfer principal to user]
+    H --> I[vaultManager.payInterest interest to user]
+    I --> J[emit Withdrawn isEarly=false]
 ```
 
-**Test coverage:** `SavingCore.withdrawAtMaturity.test.ts` — 13 tests
-- #1  — happy path: withdraw at exact maturityAt → principal + interest paid
-- #2  — withdraw after maturityAt (+1 day) → same result
-- #3  — interest formula proof: 10,000 USDC, 180 days, 400 bps → 197,260,273 units
-- #4  — before maturity → reverts NotYetMature
-- #5  — double withdraw → reverts AlreadyWithdrawn
-- #6  — vault insufficient → reverts
-- #7  — vault insufficient exact boundary: vault = interest - 1 → reverts
-- #8  — rounding dust: odd principal → truncated interest, dust stays in vault
-- #9  — Withdrawn event: isEarly=false, correct principal + interest
-- #10 — deposit status changes to Withdrawn after withdraw
-- #11 — non-NFT-owner calls → reverts (OZ ERC721 check)
-- #12 — APR snapshot: updatePlan after open → interest uses old APR
-- #13 — withdrawAtMaturity after claimInterest → pays principal only, vault unchanged
+**Test coverage:** `SavingCore.withdrawAtMaturity.test.ts` — 14 tests
 
 ---
 
@@ -159,51 +153,31 @@ flowchart TD
 flowchart TD
     A[claimPrincipal] --> B{msg.sender == ownerOf?}
     B -- No --> R1[revert NotOwner]
-    B -- Yes --> C{status == Active?}
-    C -- No --> R2[revert AlreadyWithdrawn]
-    C -- Yes --> D{timestamp >= maturityAt?}
-    D -- No --> R3[revert NotYetMature]
-    D -- Yes --> E[CEI: _settlePrincipal PrincipalClaimed]
-    E --> F[safeTransfer principal to user]
-    F --> G{interestClaimed?}
+    B -- Yes --> C{status == PrincipalClaimed?}
+    C -- Yes --> R2[revert PrincipalAlreadyClaimed]
+    C -- No --> D{status != Active?}
+    D -- Yes --> R3[revert AlreadyWithdrawn]
+    D -- No --> E{timestamp >= maturityAt?}
+    E -- No --> R4[revert NotYetMature]
+    E -- Yes --> F{interestClaimed?}
 
-    G -- Yes --> H[emit Withdrawn interest=0]
+    F -- Yes --> G[CEI: _settlePrincipal Withdrawn]
+    G --> H[safeTransfer principal to user]
+    H --> I[emit Withdrawn interest=0]
 
-    G -- No --> I[interest = _calcInterest]
-    I --> J{paused?}
-    J -- Yes --> K[pendingInterest = interest]
-    J -- No --> L{vaultBalance >= interest?}
-    L -- Yes --> M[vault.payInterest full interest]
-    M --> N[pendingInterest = 0]
-    L -- No --> O{vaultBalance > 0?}
-    O -- Yes --> P[vault.payInterest vaultBal]
-    P --> Q[pendingInterest = interest - vaultBal]
-    O -- No --> K
+    F -- No --> J[interest = _calcInterest]
+    J --> K[CEI: pendingInterest = interest]
+    K --> L[CEI: _settlePrincipal PrincipalClaimed]
+    L --> M[safeTransfer principal to user]
+    M --> N[emit Withdrawn interest=0]
 
-    K --> R[emit Withdrawn]
-    N --> R
-    Q --> R
-    H --> S[done]
-    R --> S
+    I --> O[done]
+    N --> O
 ```
 
-**Test coverage:** `SavingCore.c1.test.ts` — 16 tests (C1: principal is always safe)
-- #1  — claimPrincipal: vault funded → pays principal + full interest, no pending
-- #2  — claimPrincipal: vault empty → pays principal only, pendingInterest = full interest
-- #3  — claimPrincipal: vault partial → pays partial interest, pending = remainder
-- #4  — claimInterest: after partial claim → pays remainder, pending = 0
-- #5  — claimInterest: no pending interest → reverts NoPendingInterest
-- #6  — claimPrincipal by non-owner → reverts NotOwner
-- #7  — claimInterest by non-owner → reverts NotOwner
-- #8  — double claimPrincipal → reverts AlreadyWithdrawn
-- #9  — double claimInterest → reverts NoPendingInterest
-- #10 — claimPrincipal when paused → succeeds (C1 guarantee)
-- #11 — claimInterest when paused → reverts EnforcedPause
-- #12 — NFT transferred after claimPrincipal → new owner can claimInterest
-- #13 — burn with pending interest → reverts PendingInterestExists
-- #14 — burn after full claimInterest → succeeds
-- #15 — claimPrincipal when paused + vault funded → principal paid, full interest deferred
-- #16 — claimPrincipal after claimInterest → pays principal only, no vault call, no pending
+**Key design:** `claimPrincipal` never touches the vault. Interest is always stored as `pendingInterest`. No `whenNotPaused` modifier — C1 guarantee.
+
+**Test coverage:** `SavingCore.c1.test.ts` — 18 tests
 
 ---
 
@@ -213,35 +187,45 @@ flowchart TD
 flowchart TD
     A[claimInterest] --> B{msg.sender == ownerOf?}
     B -- No --> R1[revert NotOwner]
-    B -- Yes --> C{status == Active AND !interestClaimed?}
+    B -- Yes --> C{interestClaimed?}
+    C -- Yes --> R2[revert InterestAlreadyClaimed]
+    C -- No --> D{status?}
 
-    C -- Yes --> D{timestamp >= maturityAt?}
-    D -- No --> R2[revert NotYetMature]
-    D -- Yes --> E[amount = _calcInterest]
-    E --> F[CEI: interestClaimed = true]
+    D -- Active --> E{timestamp >= maturityAt?}
+    E -- No --> R3[revert NotYetMature]
+    E -- Yes --> F[amount = _calcInterest]
 
-    C -- No --> G[amount = pendingInterest]
+    D -- PrincipalClaimed --> G[amount = pendingInterest]
     G --> H{amount == 0?}
-    H -- Yes --> R3[revert NoPendingInterest]
+    H -- Yes --> R4[revert NoPendingInterest]
     H -- No --> I[pendingInterest = 0]
 
-    F --> J[vaultManager.payInterest amount]
+    D -- Other --> R5[revert AlreadyWithdrawn]
+
+    F --> J[CEI: vaultBal = vaultManager.vaultBalance]
     I --> J
-    J --> K[emit InterestClaimed]
+    J --> K{vaultBal >= amount?}
+    K -- Yes --> L[payAmount = amount, remainder = 0]
+    K -- No --> M[payAmount = vaultBal, remainder = amount - vaultBal]
+    L --> N[pendingInterest = remainder]
+    M --> N
+    N --> O{remainder == 0?}
+    O -- Yes --> P[interestClaimed = true]
+    O -- No --> Q[interestClaimed stays false]
+    P --> R{status == PrincipalClaimed?}
+    R -- Yes --> S[deposit.status = Withdrawn]
+    R -- No --> T[status stays Active]
+    Q --> U[payAmount > 0?]
+    S --> U
+    T --> U
+    U -- Yes --> V[vaultManager.payInterest payAmount]
+    U -- No --> W[emit InterestClaimed payAmount]
+    V --> W
 ```
 
-**Test coverage:** `SavingCore.interestClaim.test.ts` — 11 tests
-- #1  — claimInterest: pays interest from vault, principal stays in SavingCore
-- #2  — claimInterest: sets interestClaimed=true, status stays Active (0)
-- #3  — claimInterest: NFT stays with caller
-- #4  — claimInterest: double claim → reverts NoPendingInterest
-- #5  — claimInterest: not mature → reverts NotYetMature
-- #6  — claimInterest by non-owner → reverts NotOwner
-- #7  — claimInterest when paused → reverts EnforcedPause
-- #8  — claimInterest: emits InterestClaimed event
-- #9  — renewDeposit after claimInterest → new principal = old principal (no interest)
-- #10 — withdrawAtMaturity after claimInterest → pays principal only, no vault call
-- #11 — claimPrincipal after claimInterest → pays principal only, no vault call
+**Key design:** Supports partial vault payment. If vault < full interest, pays what's available, stores remainder as `pendingInterest`. User can retry after vault is refunded. `interestClaimed` only set to `true` on full payment.
+
+**Test coverage:** `SavingCore.interestClaim.test.ts` — 15 tests
 
 ---
 
@@ -265,16 +249,8 @@ flowchart TD
 ```
 
 **Note:** No interest is paid. No vault interaction. No maturity check.
+
 **Test coverage:** `SavingCore.earlyWithdraw.test.ts` — 9 tests
-- #1  — happy path: penalty deducted, user gets principal - penalty
-- #2  — zero interest: vault balance unchanged (no payInterest called)
-- #3  — feeReceiver balance increases by exact penalty amount
-- #4  — feeReceiver not set → reverts FeeReceiverNotSet
-- #5  — double early withdraw → reverts AlreadyWithdrawn
-- #6  — Withdrawn event: isEarly=true, correct principal + interest=0
-- #7  — deposit status changes to Withdrawn after earlyWithdraw
-- #8  — penalty formula proof: 10,000 USDC, 450 bps → penalty = 450 USDC
-- #9  — non-NFT-owner calls earlyWithdraw → reverts
 
 ---
 
@@ -284,37 +260,41 @@ flowchart TD
 flowchart TD
     A[renewDeposit] --> B{msg.sender == ownerOf?}
     B -- No --> R1[revert NotOwner]
-    B -- Yes --> C{status == Active?}
-    C -- No --> R2[revert AlreadyWithdrawn]
-    C -- Yes --> D{timestamp >= maturityAt?}
+    B -- Yes --> C{status is Terminal?}
+    C -- "Withdrawn/ManualRenewed/AutoRenewed" --> R2[revert AlreadyWithdrawn]
+    C -- "Active or PrincipalClaimed" --> D{timestamp >= maturityAt?}
     D -- No --> R3[revert NotYetMature]
     D -- Yes --> E{newPlanId exists AND enabled?}
-    E -- No --> R4[revert PlanNotFound / PlanNotEnabled]
-    E -- Yes --> F[interest = _calcInterest]
+    E -- No --> R4[revert PlanNotFound/PlanNotEnabled]
+    E -- Yes --> F{status != PrincipalClaimed?}
 
-    F --> G{interestClaimed?}
-    G -- Yes --> H[newPrincipal = principal only]
-    G -- No --> I[newPrincipal = principal + interest]
-    I --> J[vault.payInterest interest to SavingCore]
+    F -- Yes --> G[newPrincipal += deposit.principal]
+    F -- No --> H[skip principal, already claimed]
 
-    H --> K[CEI: _settlePrincipal ManualRenewed]
-    J --> K
-    K --> L[_createDeposit with new plan params]
-    L --> M[emit Renewed]
-    M --> N[return newDepositId]
+    G --> I{!interestClaimed?}
+    H --> I
+    I -- Yes, Active --> J[interest = _calcInterest]
+    J --> K[vault.payInterest interest to SavingCore]
+    K --> L[newPrincipal += interest]
+    I -- Yes, PrincipalClaimed --> M[interest = pendingInterest]
+    M --> N[pendingInterest = 0]
+    N --> O[vault.payInterest interest to SavingCore]
+    O --> P[newPrincipal += interest]
+    I -- No --> Q[skip interest, already claimed]
+
+    L --> R{newPrincipal > 0?}
+    P --> R
+    Q --> R
+    R -- No --> R5[revert AlreadyWithdrawn]
+    R -- Yes --> S[CEI: _settlePrincipal ManualRenewed]
+    S --> T[_createDeposit with new plan params]
+    T --> U[emit Renewed]
+    U --> V[return newDepositId]
 ```
 
-**Test coverage:** `SavingCore.renewDeposit.test.ts` — 10 tests
-- #1  — happy path: renew at exact maturityAt → new NFT minted, old status ManualRenewed
-- #2  — compound math: new principal = old principal + interest
-- #3  — new deposit uses NEW plan's APR (600), not old plan's (400)
-- #4  — new deposit uses NEW plan's tenor (90 days), not old plan's (180)
-- #5  — before maturity (maturityAt - 1 second) → reverts NotYetMature
-- #6  — non-NFT-owner calls renewDeposit → reverts
-- #7  — double renew → reverts AlreadyWithdrawn
-- #8  — nonexistent newPlanId → reverts PlanNotFound
-- #9  — disabled new plan → reverts PlanNotEnabled
-- #10 — emits Renewed event with correct args
+**Key design:** Allows renewal from `Active` or `PrincipalClaimed` status. Compounds whatever remains (principal and/or interest). Terminal states (`Withdrawn`, `ManualRenewed`, `AutoRenewed`) revert.
+
+**Test coverage:** `SavingCore.renewDeposit.test.ts` — 14 tests
 
 ---
 
@@ -322,40 +302,42 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[autoRenewDeposit] --> B{status == Active?}
-    B -- No --> R1[revert AlreadyWithdrawn]
-    B -- Yes --> C{timestamp >= maturityAt + 4 days?}
+    A[autoRenewDeposit] --> B{status is Terminal?}
+    B -- "Withdrawn/ManualRenewed/AutoRenewed" --> R1[revert AlreadyWithdrawn]
+    B -- "Active or PrincipalClaimed" --> C{timestamp >= maturityAt + 4 days?}
     C -- No --> R2[revert GracePeriodNotElapsed]
-    C -- Yes --> D[interest = _calcInterest]
+    C -- Yes --> D{status != PrincipalClaimed?}
 
-    D --> G{interestClaimed?}
-    G -- Yes --> H[newPrincipal = principal only]
-    G -- No --> I[newPrincipal = principal + interest]
-    I --> J[vault.payInterest interest to SavingCore]
+    D -- Yes --> E[newPrincipal += deposit.principal]
+    D -- No --> F[skip principal, already claimed]
 
-    H --> K[CEI: _settlePrincipal AutoRenewed]
-    J --> K
-    K --> L[_createDeposit same plan, same APR, same tenor]
-    L --> M[emit Renewed]
-    M --> N[return newDepositId]
+    E --> G{!interestClaimed?}
+    F --> G
+    G -- Yes, Active --> H[interest = _calcInterest]
+    H --> I[vault.payInterest interest to SavingCore]
+    I --> J[newPrincipal += interest]
+    G -- Yes, PrincipalClaimed --> K[interest = pendingInterest]
+    K --> L[pendingInterest = 0]
+    L --> M[vault.payInterest interest to SavingCore]
+    M --> N[newPrincipal += interest]
+    G -- No --> O[skip interest, already claimed]
+
+    J --> P{newPrincipal > 0?}
+    N --> P
+    O --> P
+    P -- No --> R3[revert AlreadyWithdrawn]
+    P -- Yes --> Q[CEI: _settlePrincipal AutoRenewed]
+    Q --> R[_createDeposit same plan, same APR, same tenor]
+    R --> S[emit Renewed]
+    S --> T[return newDepositId]
 ```
 
-**Key difference from `renewDeposit`:**
-- No owner check (anyone/bot can call)
-- Handles `interestClaimed` same as `renewDeposit` — renews with principal only if interest was already claimed
+**Key differences from `renewDeposit`:**
+- No owner check — anyone/bot can call
 - Same plan, same APR (locked to snapshot), different caller model
+- Grace period required (`maturityAt + 4 days`)
 
-**Test coverage:** `SavingCore.autoRenew.test.ts` — 10 tests
-- #1  — happy path: auto-renew after grace period → new NFT minted, old status AutoRenewed
-- #2  — compound math: new principal = old principal + interest
-- #3  — APR lock: updatePlan after open → new deposit uses old APR (400), not updated (800)
-- #4  — tenor preserved: new deposit tenor = 180 days (same as original)
-- #5  — before grace period (gracePeriodEnd - 1 second) → reverts GracePeriodNotElapsed
-- #6  — at exact grace period second (maturityAt + gracePeriod) → not reverted by GracePeriodNotElapsed
-- #7  — old deposit status changes to AutoRenewed (enum 4)
-- #8  — double auto-renew → reverts AlreadyWithdrawn
-- #9  — emits Renewed event with correct args
-- #10 — autoRenewDeposit after claimInterest → principal only, no vault call
+**Test coverage:** `SavingCore.autoRenew.test.ts` — 14 tests
 
 ---
 
@@ -373,22 +355,27 @@ flowchart TD
 ```
 
 **Note:** `pendingInterest` check is in `_update` override, not in `burn` directly.
-**Test coverage:** `SavingCore.c1.test.ts` — 2 tests
-- #13 — burn with pending interest → reverts PendingInterestExists
-- #14 — burn after full claimInterest → succeeds
+
+**Test coverage:** `SavingCore.c1.test.ts` — 2 tests (#13, #14)
 
 ---
 
 ## 4. Key Business Invariants Preserved
 
-1. **C1 — Principal is always safe:** `claimPrincipal` has no `whenNotPaused` modifier. User can always recover principal regardless of system state.
+1. **C1 — Principal is always safe:** `claimPrincipal` has no `whenNotPaused` modifier. User can always recover principal regardless of system state. Interest is stored as `pendingInterest` for later claim.
 
-2. **Interest never double-paid:** `interestClaimed=true` causes `withdrawAtMaturity`, `claimPrincipal`, `autoRenewDeposit`, and `renewDeposit` to operate with principal only (no vault call). The `claimInterest` Path A sets the flag before any external call.
+2. **Interest never double-paid:** `interestClaimed=true` is only set on full payment. `claimInterest` checks `interestClaimed` before any calculation. Partial payments leave `interestClaimed=false` for retry.
 
-3. **APR immutability:** All interest calculations use `aprBpsAtOpen` (snapshotted at deposit time), never the current plan APR.
+3. **Specific revert guidance:** When a function is blocked by partial claim state, reverts with `UseClaimInterest` or `UseClaimPrincipal` to guide the user to the correct function.
 
-4. **Boundary at `maturityAt`:** `>=` consistently — at the exact maturity second, all maturity-gated functions are allowed.
+4. **APR immutability:** All interest calculations use `aprBpsAtOpen` (snapshotted at deposit time), never the current plan APR.
 
-5. **CEI compliance:** `_settlePrincipal()` and `_calcInterest()` are free of external calls. State is always updated before `safeTransfer`/`payInterest`.
+5. **Boundary at `maturityAt`:** `>=` consistently — at the exact maturity second, all maturity-gated functions are allowed.
 
-6. **Vault separation:** Principal always from SavingCore balance. Interest always from VaultManager. `earlyWithdraw` penalty goes to `feeReceiver`, not vault.
+6. **CEI compliance:** `_settlePrincipal()` and `_calcInterest()` are free of external calls. State is always updated before `safeTransfer`/`payInterest`.
+
+7. **Vault separation:** Principal always from SavingCore balance. Interest always from VaultManager. `earlyWithdraw` penalty goes to `feeReceiver`, not vault.
+
+8. **Partial vault payment:** `claimInterest` gracefully handles insufficient vault balance — pays what's available, stores remainder as `pendingInterest` for retry after vault is refunded.
+
+9. **Renewal flexibility:** `renewDeposit` and `autoRenewDeposit` allow renewal from `PrincipalClaimed` status — compounds whatever remains (interest only if principal was already claimed).

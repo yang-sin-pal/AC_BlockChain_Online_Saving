@@ -16,42 +16,14 @@ describe("SavingCore — C1: principal is always safe", function () {
     return { ...base, depositId: 0n, amount, openTimestamp: block!.timestamp };
   }
 
-  // ─── 1. claimPrincipal: vault funded → pays principal + full interest ──
+  // ─── 1. claimPrincipal: pays principal, interest goes to pending ──────
 
-  it("#1 — claimPrincipal: vault funded → pays principal + full interest, no pending", async function () {
-    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const deposit = await savingCore.deposits(0);
-    const principal = deposit.principal;
-    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-
-    const userBalBefore = await usdc.balanceOf(await user.getAddress());
-    const vaultBalBefore = await vaultManager.vaultBalance();
-
-    await savingCore.connect(user).claimPrincipal(0);
-
-    const userBalAfter = await usdc.balanceOf(await user.getAddress());
-    const vaultBalAfter = await vaultManager.vaultBalance();
-
-    expect(userBalAfter).to.equal(userBalBefore + principal + expectedInterest);
-    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
-    expect(await savingCore.pendingInterest(0)).to.equal(0n);
-  });
-
-  // ─── 2. claimPrincipal: vault empty → pays principal only ──────────────
-
-  it("#2 — claimPrincipal: vault empty → pays principal only, pendingInterest = full interest", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+  it("#1 — claimPrincipal: pays principal, interest stored as pendingInterest", async function () {
+    const { savingCore, usdc, user } = await loadFixture(fixtureWithDeposit);
 
     const deposit = await savingCore.deposits(0);
     const principal = deposit.principal;
     const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
-
-    // Drain vault completely
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 
@@ -63,74 +35,84 @@ describe("SavingCore — C1: principal is always safe", function () {
 
     // User gets principal only
     expect(userBalAfter).to.equal(userBalBefore + principal);
-    // Interest recorded as pending
+    // Interest stored as pending
     expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest);
+    // Status = PrincipalClaimed
+    const depositAfter = await savingCore.deposits(0);
+    expect(depositAfter.status).to.equal(2); // PrincipalClaimed
   });
 
-  // ─── 3. claimPrincipal: vault partial → pays principal + partial interest ─
+  // ─── 2. claimPrincipal: when interestClaimed=true → status=Withdrawn ──
 
-  it("#3 — claimPrincipal: vault partial → pays partial interest, pending = remainder", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const deposit = await savingCore.deposits(0);
-    const principal = deposit.principal;
-    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
-
-    // Leave exactly half the interest in vault
-    const halfInterest = expectedInterest / 2n;
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal - halfInterest);
+  it("#2 — claimPrincipal after claimInterest → status=Withdrawn (both done)", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 
+    // Claim interest first (Path A)
+    await savingCore.connect(user).claimInterest(0);
+
+    // Then claim principal
     await savingCore.connect(user).claimPrincipal(0);
 
-    // Pending = total interest - what vault paid
-    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest - halfInterest);
+    const deposit = await savingCore.deposits(0);
+    expect(deposit.status).to.equal(1); // Withdrawn
+    expect(await savingCore.pendingInterest(0)).to.equal(0n);
   });
 
-  // ─── 4. claimInterest: pays pending remainder ──────────────────────────
+  // ─── 3. claimPrincipal: double claim → reverts PrincipalAlreadyClaimed ─
 
-  it("#4 — claimInterest: after partial claim → pays remainder, pending = 0", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const deposit = await savingCore.deposits(0);
-    const principal = deposit.principal;
-    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
-
-    // Drain vault so claimPrincipal records full interest as pending
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
+  it("#3 — double claimPrincipal → reverts PrincipalAlreadyClaimed", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimPrincipal(0);
 
-    // Now admin funds vault
-    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
-    await vaultManager.connect(owner).fundVault(expectedInterest);
+    await expect(
+      savingCore.connect(user).claimPrincipal(0),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_PrincipalAlreadyClaimed");
+  });
 
+  // ─── 4. claimInterest (Path B): after claimPrincipal → pays pending ───
+
+  it("#4 — claimInterest after claimPrincipal → pays pending, status=Withdrawn", async function () {
+    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    const expectedInterest = calculateExpectedInterest(toUSDC(10_000), DEFAULT_APR, DEFAULT_TENOR);
     const userBalBefore = await usdc.balanceOf(await user.getAddress());
+    const vaultBalBefore = await vaultManager.vaultBalance();
 
     await savingCore.connect(user).claimInterest(0);
 
     const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const vaultBalAfter = await vaultManager.vaultBalance();
 
     expect(userBalAfter).to.equal(userBalBefore + expectedInterest);
+    expect(vaultBalAfter).to.equal(vaultBalBefore - expectedInterest);
     expect(await savingCore.pendingInterest(0)).to.equal(0n);
+
+    const deposit = await savingCore.deposits(0);
+    expect(deposit.status).to.equal(1); // Withdrawn (both done)
   });
 
-  // ─── 5. claimInterest: no pending → revert ─────────────────────────────
+  // ─── 5. claimInterest: after full claim → reverts InterestAlreadyClaimed ──
 
-  it("#5 — claimInterest: no pending interest → reverts NoPendingInterest", async function () {
+  it("#5 — claimInterest: after claimPrincipal+claimInterest → reverts InterestAlreadyClaimed", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    // claimPrincipal with vault funded → no pending interest
+    // claimPrincipal stores interest as pending
     await savingCore.connect(user).claimPrincipal(0);
+    // claimInterest clears pending, sets interestClaimed=true
+    await savingCore.connect(user).claimInterest(0);
 
+    // interestClaimed is now true → InterestAlreadyClaimed (checked before NoPendingInterest)
     await expect(
       savingCore.connect(user).claimInterest(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NoPendingInterest");
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_InterestAlreadyClaimed");
   });
 
   // ─── 6. claimPrincipal: non-owner → revert ────────────────────────────
@@ -149,11 +131,8 @@ describe("SavingCore — C1: principal is always safe", function () {
   // ─── 7. claimInterest: non-owner → revert ─────────────────────────────
 
   it("#7 — claimInterest by non-owner → reverts NotOwner", async function () {
-    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
-    // Drain vault, claim principal to create pending interest
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimPrincipal(0);
 
@@ -163,50 +142,33 @@ describe("SavingCore — C1: principal is always safe", function () {
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotOwner");
   });
 
-  // ─── 8. double claimPrincipal → revert ────────────────────────────────
+  // ─── 8. claimPrincipal: before maturity → revert ─────────────────────
 
-  it("#8 — double claimPrincipal → reverts AlreadyWithdrawn", async function () {
+  it("#8 — claimPrincipal before maturity → reverts NotYetMature", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimPrincipal(0);
 
     await expect(
       savingCore.connect(user).claimPrincipal(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotYetMature");
   });
 
-  // ─── 9. double claimInterest → revert ─────────────────────────────────
+  // ─── 9. double claimInterest (Path A) → reverts InterestAlreadyClaimed
 
-  it("#9 — double claimInterest → reverts NoPendingInterest", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+  it("#9 — double claimInterest → reverts InterestAlreadyClaimed", async function () {
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimPrincipal(0);
-
-    // Fund vault and claim
-    const deposit = await savingCore.deposits(0);
-    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
-    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
-    await vaultManager.connect(owner).fundVault(expectedInterest);
     await savingCore.connect(user).claimInterest(0);
 
-    // Double claim → reverts
     await expect(
       savingCore.connect(user).claimInterest(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NoPendingInterest");
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_InterestAlreadyClaimed");
   });
 
-  // ─── 10. claimPrincipal when paused → succeeds ────────────────────────
+  // ─── 10. claimPrincipal when paused → succeeds (C1 guarantee) ────────
 
   it("#10 — claimPrincipal when paused → succeeds (C1 guarantee)", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    // Drain vault to prove principal-only works when paused
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
+    const { savingCore, usdc, owner, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(owner).pause();
@@ -234,41 +196,10 @@ describe("SavingCore — C1: principal is always safe", function () {
     ).to.be.revertedWithCustomError(savingCore, "EnforcedPause");
   });
 
-  // ─── 15. claimPrincipal when paused, vault funded → defers 100% interest ─
-
-  it("#15 — claimPrincipal when paused + vault funded → principal paid, full interest deferred", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const deposit = await savingCore.deposits(0);
-    const principal = deposit.principal;
-    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(owner).pause();
-
-    const userBalBefore = await usdc.balanceOf(await user.getAddress());
-    const vaultBalBefore = await vaultManager.vaultBalance();
-
-    await savingCore.connect(user).claimPrincipal(0);
-
-    const userBalAfter = await usdc.balanceOf(await user.getAddress());
-    const vaultBalAfter = await vaultManager.vaultBalance();
-
-    // User gets principal only
-    expect(userBalAfter).to.equal(userBalBefore + principal);
-    // Vault untouched — even though it had enough funds
-    expect(vaultBalAfter).to.equal(vaultBalBefore);
-    // Full interest deferred to pendingInterest
-    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest);
-  });
-
-  // ─── 12. NFT transferred after claimPrincipal → new owner can claimInterest ─
+  // ─── 12. NFT transferred after claimPrincipal → new owner can claimInterest
 
   it("#12 — NFT transferred after claimPrincipal → new owner can claimInterest", async function () {
     const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimPrincipal(0);
@@ -279,9 +210,10 @@ describe("SavingCore — C1: principal is always safe", function () {
       await user.getAddress(), await other.getAddress(), 0,
     );
 
-    // Fund vault so claimInterest succeeds
+    // Fund vault so claimInterest succeeds (mint extra USDC to owner first)
     const deposit = await savingCore.deposits(0);
     const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+    await usdc.mint(await owner.getAddress(), expectedInterest);
     await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
     await vaultManager.connect(owner).fundVault(expectedInterest);
 
@@ -294,10 +226,7 @@ describe("SavingCore — C1: principal is always safe", function () {
   // ─── 13. burn with pending interest → revert ───────────────────────────
 
   it("#13 — burn with pending interest → reverts PendingInterestExists", async function () {
-    const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimPrincipal(0);
@@ -311,20 +240,13 @@ describe("SavingCore — C1: principal is always safe", function () {
   // ─── 14. burn after full claimInterest → succeeds ──────────────────────
 
   it("#14 — burn after full claimInterest → succeeds", async function () {
-    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
-
-    const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
+    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimPrincipal(0);
-
-    // Fund vault and claim interest
-    const deposit = await savingCore.deposits(0);
-    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
-    await usdc.connect(owner).approve(await vaultManager.getAddress(), expectedInterest);
-    await vaultManager.connect(owner).fundVault(expectedInterest);
+    // claimInterest (Path A) — vault funded
     await savingCore.connect(user).claimInterest(0);
+    // claimPrincipal — interestClaimed=true → status=Withdrawn
+    await savingCore.connect(user).claimPrincipal(0);
 
     // pendingInterest == 0 → burn should succeed
     await savingCore.connect(user).burn(0);
@@ -333,24 +255,108 @@ describe("SavingCore — C1: principal is always safe", function () {
     ).to.be.reverted;
   });
 
-  // ─── 16. claimPrincipal after claimInterest → principal only ──────────
+  // ─── 15. claimPrincipal when paused → interest stored as pending ─────
 
-  it("#16 — claimPrincipal after claimInterest → pays principal only, no vault call, no pending", async function () {
-    const { savingCore, usdc, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+  it("#15 — claimPrincipal when paused → principal paid, interest deferred to pending", async function () {
+    const { savingCore, usdc, owner, user } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const principal = deposit.principal;
+    const expectedInterest = calculateExpectedInterest(principal, DEFAULT_APR, DEFAULT_TENOR);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterest(0);
+    await savingCore.connect(owner).pause();
 
     const userBalBefore = await usdc.balanceOf(await user.getAddress());
-    const vaultBalBefore = await vaultManager.vaultBalance();
 
     await savingCore.connect(user).claimPrincipal(0);
 
     const userBalAfter = await usdc.balanceOf(await user.getAddress());
-    const vaultBalAfter = await vaultManager.vaultBalance();
+
+    // User gets principal only
+    expect(userBalAfter).to.equal(userBalBefore + principal);
+    // Full interest deferred to pendingInterest
+    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest);
+  });
+
+  // ─── 16. claimPrincipal after claimInterest → pays principal, Withdrawn
+
+  it("#16 — claimPrincipal after claimInterest → pays principal, status=Withdrawn", async function () {
+    const { savingCore, usdc, user } = await loadFixture(fixtureWithDeposit);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+
+    // Claim interest first
+    await savingCore.connect(user).claimInterest(0);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+
+    await savingCore.connect(user).claimPrincipal(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+    const deposit = await savingCore.deposits(0);
 
     expect(userBalAfter).to.equal(userBalBefore + toUSDC(10_000));
-    expect(vaultBalAfter).to.equal(vaultBalBefore);
+    expect(deposit.status).to.equal(1); // Withdrawn
     expect(await savingCore.pendingInterest(0)).to.equal(0n);
+  });
+
+  // ─── 17. claimInterest partial vault: vault insufficient → pays partial, remainder pending ──
+
+  it("#17 — claimInterest partial vault → pays what vault has, remainder as pending", async function () {
+    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    // Drain vault and leave only half the interest
+    const halfInterest = expectedInterest / 2n;
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal - halfInterest);
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+
+    const userBalBefore = await usdc.balanceOf(await user.getAddress());
+
+    // claimInterest → vault only has half → partial payment
+    await savingCore.connect(user).claimInterest(0);
+
+    const userBalAfter = await usdc.balanceOf(await user.getAddress());
+
+    expect(userBalAfter).to.equal(userBalBefore + halfInterest);
+    // Remainder stored as pending
+    expect(await savingCore.pendingInterest(0)).to.equal(expectedInterest - halfInterest);
+    // interestClaimed stays false
+    expect((await savingCore.deposits(0)).interestClaimed).to.be.false;
+  });
+
+  // ─── 18. claimInterest partial vault then retry → eventually Withdrawn ──
+
+  it("#18 — claimInterest partial then retry → eventually Withdrawn", async function () {
+    const { savingCore, usdc, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
+
+    const deposit = await savingCore.deposits(0);
+    const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
+
+    // Leave only 1 USDC in vault
+    const vaultBal = await vaultManager.vaultBalance();
+    await vaultManager.connect(owner).withdrawVault(vaultBal - toUSDC(1));
+
+    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
+    await savingCore.connect(user).claimPrincipal(0);
+
+    // First claimInterest: vault has 1 USDC → partial
+    await savingCore.connect(user).claimInterest(0);
+    expect(await savingCore.pendingInterest(0)).to.be.greaterThan(0n);
+
+    // Admin funds vault with remaining
+    const remaining = expectedInterest - toUSDC(1);
+    await usdc.connect(owner).approve(await vaultManager.getAddress(), remaining);
+    await vaultManager.connect(owner).fundVault(remaining);
+
+    // Second claimInterest: pays remainder → Withdrawn
+    await savingCore.connect(user).claimInterest(0);
+    expect(await savingCore.pendingInterest(0)).to.equal(0n);
+    expect((await savingCore.deposits(0)).status).to.equal(1); // Withdrawn
   });
 });

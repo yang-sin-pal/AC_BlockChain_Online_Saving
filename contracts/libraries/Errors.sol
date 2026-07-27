@@ -21,3 +21,7 @@ error SavingCore_NotOwner();
 error SavingCore_GracePeriodNotElapsed();
 error SavingCore_NoPendingInterest();
 error SavingCore_PendingInterestExists();
+error SavingCore_PrincipalAlreadyClaimed();
+error SavingCore_InterestAlreadyClaimed();
+error SavingCore_UseClaimInterest();
+error SavingCore_UseClaimPrincipal();
