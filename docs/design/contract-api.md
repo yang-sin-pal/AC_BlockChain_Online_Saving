@@ -347,10 +347,11 @@ Resumes VaultManager operations after a pause.
 
 #### payInterest
 
-Transfers interest from the vault to a recipient. Called exclusively by SavingCore during withdraw and renew flows.
+Transfers interest from the vault to a recipient. Called exclusively by SavingCore during withdraw and renew flows. **Reverts with `EnforcedPause` when VaultManager is paused** — no money leaves the vault during emergency.
 
 - **Access:** SavingCore contract only (`onlySavingCore`).
-- **Business rules:** BR-10 (vault solvency check before transfer).
+- **Business rules:** BR-10 (vault solvency check before transfer), BR-16 (vault freeze during pause).
+- **Modifiers:** `nonReentrant`, `onlySavingCore`, `whenNotPaused`
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

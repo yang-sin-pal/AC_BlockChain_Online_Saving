@@ -91,7 +91,7 @@ Example:
 | `setSavingCore` | Owner (once) | `onlyOwner` + one-shot | — |
 | `pause` | Owner | `onlyOwner` | — |
 | `unpause` | Owner | `onlyOwner` | — |
-| `payInterest` | SavingCore | `onlySavingCore` | `nonReentrant` |
+| `payInterest` | SavingCore | `onlySavingCore` | `nonReentrant`, `whenNotPaused` |
 
 ---
 
@@ -122,7 +122,7 @@ When VaultManager is paused, the following functions are blocked:
 |----------|----------|--------|
 | `withdrawVault` | YES | `whenNotPaused` |
 
-**Note:** `payInterest` on VaultManager has **no** `whenNotPaused` — SavingCore can always pay interest to users even when VaultManager is paused.
+**Note:** `payInterest` on VaultManager has `whenNotPaused` — no money leaves the vault during emergency. Users can still claim principal via `claimPrincipal` (no vault dependency), but interest is deferred to `pendingInterest` until vault is unpaused.
 
 ---
 
@@ -249,4 +249,4 @@ The C1 (Principal Protection) feature guarantees users can always reclaim their 
 | SavingCore paused → renewDeposit | Revert (whenNotPaused) |
 | SavingCore paused → autoRenewDeposit | Revert (whenNotPaused) |
 | VaultManager paused → withdrawVault | Revert (whenNotPaused) |
-| VaultManager paused → payInterest | Success (no whenNotPaused) |
+| VaultManager paused → payInterest | Revert (whenNotPaused) |

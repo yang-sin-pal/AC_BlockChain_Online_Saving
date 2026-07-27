@@ -127,11 +127,11 @@ The Online Saving System is composed of three main smart contracts. The core pri
 
 | Function | Description | Source |
 |----------|-------------|--------|
-| `payInterest(address to, uint256 amount)` | Transfer interest from vault to recipient (user on withdraw, SavingCore on renew) | §3.2, §6 Rule 5 |
+| `payInterest(address to, uint256 amount)` | Transfer interest from vault to recipient (user on withdraw, SavingCore on renew). **Reverts when paused.** | §3.2, §6 Rule 5 |
 | `feeReceiver() → address` | Return the feeReceiver address (for early withdrawal penalty routing) | §3.3, §4 |
 | `vaultBalance() → uint256` | Return current USDC held in the vault | §4, frontend display |
 
-**Note:** `payInterest` has **no** `whenNotPaused` — SavingCore can always pay interest to users even when VaultManager is paused.
+**Note:** `payInterest` has `whenNotPaused` — no money leaves the vault during emergency. Users can still claim principal via `claimPrincipal` (no vault dependency), but interest is deferred to `pendingInterest` until vault is unpaused.
 
 ---
 
@@ -386,10 +386,10 @@ The system has **two independent pause states** — one for SavingCore and one f
 │─────────────────────────────────────│     │─────────────────────────────────────│
 │ Blocks:                             │     │ Blocks:                             │
 │   • withdrawAtMaturity              │     │   • withdrawVault                   │
-│   • claimInterest                   │     │                                     │
-│   • renewDeposit                    │     │ Does NOT block:                     │
-│   • autoRenewDeposit                │     │   • payInterest ( SavingCore can    │
-│                                     │     │     always pay interest to users)   │
+│   • claimInterest                   │     │   • payInterest (no money out)      │
+│   • renewDeposit                    │     │                                     │
+│   • autoRenewDeposit                │     │ Does NOT block:                     │
+│                                     │     │   • fundVault (money in is OK)      │
 │ Does NOT block:                     │     │                                     │
 │   • claimPrincipal (always safe)    │     └─────────────────────────────────────┘
 │   • earlyWithdraw (always safe)     │
@@ -401,7 +401,7 @@ The system has **two independent pause states** — one for SavingCore and one f
 **Why two pause states?**
 
 1. **SavingCore pause** protects users from exploits in renew/withdraw flows while allowing principal reclaim (`claimPrincipal` has no `whenNotPaused`).
-2. **VaultManager pause** protects the vault from draining while allowing interest payments to continue (`payInterest` has no `whenNotPaused`).
+2. **VaultManager pause** protects the vault from draining — no money leaves the vault (`withdrawVault` and `payInterest` both have `whenNotPaused`).
 3. They serve different security purposes and may need to be toggled independently.
 
 ---

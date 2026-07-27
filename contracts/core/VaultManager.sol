@@ -72,9 +72,10 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
     }
 
     /// @notice SavingCore calls this to request interest payout from the vault.
+    /// @dev Reverts when paused — no money leaves the vault during emergency.
     /// @param to Address to receive tokens.
     /// @param amount Amount of USDC to transfer.
-    function payInterest(address to, uint256 amount) external nonReentrant onlySavingCore {
+    function payInterest(address to, uint256 amount) external nonReentrant onlySavingCore whenNotPaused {
         usdc.safeTransfer(to, amount);
         emit Events.InterestPaid(to, amount);
     }
