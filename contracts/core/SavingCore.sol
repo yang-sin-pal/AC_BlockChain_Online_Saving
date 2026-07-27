@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ISavingCore.sol";
@@ -15,7 +16,7 @@ import "../libraries/InterestLib.sol";
 /// @title SavingCore
 /// @notice Business logic: saving plan, mở/rút/gia hạn deposit, mint NFT chứng chỉ.
 /// @dev Ngày 1: chỉ dựng khung + logic quản lý plan. openDeposit/withdraw/renew làm ở Ngày 2-4.
-contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
+contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable usdc;
@@ -97,6 +98,16 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
         emit Events.PlanDisabled(planId);
     }
 
+    /// @notice Emergency pause — blocks withdrawals and renewals.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Resumes operations after a pause.
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     // ---------- Internal helpers ----------
 
     /// @notice Creates a deposit record and mints the NFT certificate.
@@ -168,7 +179,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     /// @dev Caller must be the NFT owner. Interest is paid from the vault.
     ///      Principal is returned from SavingCore's own balance.
     /// @param depositId ID of the deposit to withdraw.
-    function withdrawAtMaturity(uint256 depositId) external nonReentrant override {
+    function withdrawAtMaturity(uint256 depositId) external nonReentrant whenNotPaused override {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
@@ -198,7 +209,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     /// @dev Caller must be the NFT owner. Penalty is sent to feeReceiver, not the vault.
     ///      Principal minus penalty is returned from SavingCore's own balance.
     /// @param depositId ID of the deposit to withdraw early.
-    function earlyWithdraw(uint256 depositId) external nonReentrant override {
+    function earlyWithdraw(uint256 depositId) external nonReentrant whenNotPaused override {
         Deposit storage deposit = deposits[depositId];
 
         if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
@@ -228,6 +239,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     function renewDeposit(uint256 depositId, uint256 newPlanId)
         external
         nonReentrant
+        whenNotPaused
         override
         returns (uint256)
     {
@@ -280,7 +292,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard {
     ///      into the new deposit. APR is locked to the original aprBpsAtOpen (BR-15).
     /// @param depositId ID of the deposit to auto-renew.
     /// @return newDepositId ID of the newly minted deposit.
-    function autoRenewDeposit(uint256 depositId) external nonReentrant override returns (uint256) {
+    function autoRenewDeposit(uint256 depositId) external nonReentrant whenNotPaused override returns (uint256) {
         Deposit storage oldDeposit = deposits[depositId];
 
         // No owner check — anyone can trigger auto-renew (§3.5: "A bot calls this")
