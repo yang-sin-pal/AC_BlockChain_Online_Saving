@@ -111,20 +111,21 @@ struct Deposit {
     uint16 aprBpsAtOpen;       // 2 bytes
     uint16 penaltyBpsAtOpen;   // 2 bytes
     Status status;             // 1 byte (uint8)
+    bool interestClaimed;      // 1 byte (C1: tracks if interest fully claimed)
 }
 ```
 
 **Packing analysis:**
-- **Without packing (original order):** 5 slots (planId, principal, startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status).
+- **Without packing (original order):** 5 slots (planId, principal, startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status, interestClaimed).
 - **With packing (reordered):** 3 slots:
   - Slot 1: `planId` (32 bytes)
   - Slot 2: `principal` (32 bytes)
-  - Slot 3: `startAt` (8) + `maturityAt` (8) + `aprBpsAtOpen` (2) + `penaltyBpsAtOpen` (2) + `status` (1) = 21 bytes ✓
+  - Slot 3: `startAt` (8) + `maturityAt` (8) + `aprBpsAtOpen` (2) + `penaltyBpsAtOpen` (2) + `status` (1) + `interestClaimed` (1) = **22 bytes** ✓
 
 **Why this order?**
 - `planId` and `principal` are the most frequently read fields (for display, interest calculations).
 - The timestamp and rate fields are always read together during maturity checks.
-- `status` is small and fits in the remaining space.
+- `status` and `interestClaimed` are small and fit in the remaining space.
 
 **Gas impact:** Each deposit open saves ~40,000 gas (2 fewer SSTORE operations).
 
@@ -132,10 +133,11 @@ struct Deposit {
 
 ```solidity
 enum Status {
-    Active,      // 0
-    Withdrawn,   // 1
-    ManualRenewed, // 2
-    AutoRenewed  // 3
+    Active,          // 0
+    Withdrawn,       // 1
+    PrincipalClaimed, // 2 (C1: principal claimed, interest pending)
+    ManualRenewed,   // 3
+    AutoRenewed      // 4
 }
 ```
 
@@ -149,12 +151,14 @@ Storage layout follows C3 linearization of the inheritance chain: `ERC721 → Ow
 |-------|----------|------|-------|------------|---------|
 | — | `usdc` | IERC20 | — | **Immutable** (bytecode) | USDC token address |
 | — | `vaultManager` | IVaultManager | — | **Immutable** (bytecode) | Vault interaction |
+| — | `personalGracePeriod` | uint256 | — | **Constant** (bytecode) | Grace period in days (4) |
 | 1 | `deposits` | mapping(uint256 => Deposit) | 32 | Slot 1 | Deposit storage |
 | 2 | `nextDepositId` | uint256 | 32 | Slot 2 | Deposit ID counter |
 | 3 | `plans` | mapping(uint256 => Plan) | 32 | Slot 3 | Plan storage |
 | 4 | `nextPlanId` | uint256 | 32 | Slot 4 | Plan ID counter |
+| 5 | `pendingInterest` | mapping(uint256 => uint256) | 32 | Slot 5 | C1: Unpaid interest per deposit |
 
-**Packing note:** Mappings don't pack (each mapping uses a full slot for the base slot). The counters could be packed with something else, but they're rarely accessed together with other variables. `usdc` and `vaultManager` are `immutable` — stored in bytecode, not storage, so they occupy zero storage slots after deployment.
+**Packing note:** Mappings don't pack (each mapping uses a full slot for the base slot). The counters could be packed with something else, but they're rarely accessed together with other variables. `usdc` and `vaultManager` are `immutable` — stored in bytecode, not storage, so they occupy zero storage slots after deployment. `personalGracePeriod` is a `constant` — also stored in bytecode.
 
 ---
 
@@ -170,17 +174,19 @@ VaultManager
 SavingCore
   ├── usdc: IERC20 (MockUSDC)        [immutable]
   ├── vaultManager: IVaultManager     [immutable]
+  ├── personalGracePeriod: uint256    [constant = 4]
   ├── plans: mapping(uint256 => Plan)
   │     └── Plan
   │           ├── tenorDays, aprBps, earlyWithdrawPenaltyBps, enabled (packed)
   │           ├── minDeposit
   │           └── maxDeposit
-  └── deposits: mapping(uint256 => Deposit)
-        └── Deposit
-              ├── planId
-              ├── principal
-              ├── startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status (packed)
-              └── ERC721 tokenId = depositId
+  ├── deposits: mapping(uint256 => Deposit)
+  │     └── Deposit
+  │           ├── planId
+  │           ├── principal
+  │           ├── startAt, maturityAt, aprBpsAtOpen, penaltyBpsAtOpen, status, interestClaimed (packed)
+  │           └── ERC721 tokenId = depositId
+  └── pendingInterest: mapping(uint256 => uint256)  [C1: unpaid interest per deposit]
 ```
 
 ---
@@ -250,15 +256,15 @@ earn 6%
 |----------|---------------|------------|-------|
 | MockUSDC | ~3 | — | ERC20 standard (balances, allowances, totalSupply) |
 | VaultManager | 5 | 1 (`usdc`) | owner, status, paused, savingCore, feeReceiver |
-| SavingCore | 4 | 2 (`usdc`, `vaultManager`) | deposits, nextDepositId, plans, nextPlanId |
+| SavingCore | 5 | 2 (`usdc`, `vaultManager`) + 1 constant (`personalGracePeriod`) | deposits, nextDepositId, plans, nextPlanId, pendingInterest |
 | Plan (each) | 3 | — | Packed small fields + 2 uint256 |
-| Deposit (each) | 3 | — | 2 uint256 + packed timestamps/rates/status |
+| Deposit (each) | 3 | — | 2 uint256 + packed timestamps/rates/status/interestClaimed |
 
 ## Gas Savings from Packing
 
 | Operation | Without Packing | With Packing | Savings |
 |-----------|-----------------|--------------|---------|
-| Create Plan | 5 SSTORE | 3 SSTORE | ~40,000 gas |
+| Create Plan | 6 SSTORE | 3 SSTORE | ~60,000 gas |
 | Open Deposit | 5 SSTORE | 3 SSTORE | ~40,000 gas |
 | Update Plan | 4 SSTORE | 1 SSTORE | ~60,000 gas |
 | Withdraw | 2 SSTORE | 2 SSTORE | 0 (status update) |
@@ -301,3 +307,6 @@ earn 6%
 - [x] Storage packing analysis with gas savings
 - [x] Open questions storage impact addressed
 - [x] Future optimization roadmap
+- [x] C1 (Principal Protection) storage: `pendingInterest` mapping documented
+- [x] C1 (Principal Protection) storage: `interestClaimed` field in Deposit struct documented
+- [x] C1 (Principal Protection) storage: `PrincipalClaimed` status value documented

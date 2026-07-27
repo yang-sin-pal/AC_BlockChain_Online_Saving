@@ -79,6 +79,10 @@ The Online Saving System is composed of three main smart contracts. The core pri
 | Early withdrawal: apply penalty, zero interest, send to feeReceiver | §3.3, §6 Rule 3 |
 | Manual renew: after maturity, compound interest, new plan rate | §3.4 |
 | Auto renew: after grace period, original APR locked, same tenor | §3.5, §6 Rule 4 |
+| Claim principal (C1): claim principal without vault dependency, store interest as pending | §8.3 C1 |
+| Claim interest (C1): claim interest separately, partial vault payment support | §8.3 C1 |
+| Burn NFT: burn certificate after withdrawal, blocked if pending interest exists | §2.2, §3.1 point 5 |
+| Pause/unpause: emergency stop for renew/withdraw flows | §4, §6 Rule 6 |
 | ERC721 certificates: one NFT per deposit, status tracking | §2.2, §3.1 point 5, §7.1 |
 | Holds user principal: separate from vault | §1.1 key idea |
 
@@ -106,6 +110,7 @@ The Online Saving System is composed of three main smart contracts. The core pri
 | Hold liquidity: stores interest pool funded by admin | §1.1 table |
 | Pay interest: transfer on SavingCore's request | §3.2: "interest is paid from the VaultManager", §6 Rule 5 |
 | Solvency check: verify sufficient balance before paying | §6 Rule 5, §10 tips |
+| Pause/unpause: emergency stop for vault withdrawals | §4, §6 Rule 6 |
 
 **Admin functions (restricted):**
 
@@ -114,8 +119,9 @@ The Online Saving System is composed of three main smart contracts. The core pri
 | `fundVault(amount)` | Deposit tokens into the interest pool | §4 |
 | `withdrawVault(amount)` | Remove tokens (within safe limits) | §4 |
 | `setFeeReceiver(address)` | Set address receiving early-withdrawal penalties | §4 |
-| `pause()` | Emergency stop — blocks all withdrawals and renewals | §4, §6 Rule 6 |
-| `unpause()` | Resume system operations | §4, §6 Rule 6 |
+| `setSavingCore(address)` | Set SavingCore address (one-shot setter) | §4 |
+| `pause()` | Emergency stop — blocks `withdrawVault` | §4, §6 Rule 6 |
+| `unpause()` | Resume VaultManager operations | §4, §6 Rule 6 |
 
 **Core-facing functions:**
 
@@ -124,6 +130,8 @@ The Online Saving System is composed of three main smart contracts. The core pri
 | `payInterest(address to, uint256 amount)` | Transfer interest from vault to recipient (user on withdraw, SavingCore on renew) | §3.2, §6 Rule 5 |
 | `feeReceiver() → address` | Return the feeReceiver address (for early withdrawal penalty routing) | §3.3, §4 |
 | `vaultBalance() → uint256` | Return current USDC held in the vault | §4, frontend display |
+
+**Note:** `payInterest` has **no** `whenNotPaused` — SavingCore can always pay interest to users even when VaultManager is paused.
 
 ---
 
@@ -215,6 +223,72 @@ Bot → SavingCore.autoRenewDeposit(depositId)
             └── emit Renewed(oldDepositId, newDepositId, newPrincipal, samePlanId)
 ```
 
+### Claim Principal (C1 — Principal Protection)
+
+> **Source:** assignment.md §8.3 C1
+
+```
+User → SavingCore.claimPrincipal(depositId)
+            │
+            ├── Verify: block.timestamp >= maturityAt       [§8.3 C1]
+            ├── Verify: interestClaimed == false            [§8.3 C1]
+            ├── Calculate interest (simple interest)        [§8.3 C1]
+            ├── Store interest in pendingInterest[depositId] [§8.3 C1]
+            ├── SavingCore → transfer(user, principal)      [§8.3 C1]
+            ├── If status == Active → status = PrincipalClaimed  [§8.3 C1]
+            ├── If status == Withdrawn → status = Withdrawn     [§8.3 C1]
+            └── emit Withdrawn(depositId, owner, principal, interest, isEarly=false)
+```
+
+**Key design:** No `whenNotPaused` — user can always reclaim principal regardless of pause state.
+
+### Claim Interest (C1 — Partial Vault Payment)
+
+> **Source:** assignment.md §8.3 C1
+
+```
+User → SavingCore.claimInterest(depositId)
+            │
+            ├── Path A (status == Active):
+            │       ├── Calculate interest (simple interest)
+            │       ├── Check vault balance
+            │       ├── If vault >= interest:
+            │       │       ├── VaultManager → transfer(user, interest)
+            │       │       ├── interestClaimed = true
+            │       │       └── status → Withdrawn
+            │       └── If vault < interest:
+            │               ├── VaultManager → transfer(user, vault_balance)
+            │               └── pendingInterest += (interest - vault_balance)
+            │
+            └── Path B (status == PrincipalClaimed):
+                    ├── Check pendingInterest[depositId]
+                    ├── If pendingInterest == 0 → revert NoPendingInterest
+                    ├── If pendingInterest > 0:
+                    │       ├── VaultManager → transfer(user, pendingInterest)
+                    │       ├── pendingInterest = 0
+                    │       ├── interestClaimed = true
+                    │       └── status → Withdrawn
+                    └── If vault < pendingInterest:
+                            ├── VaultManager → transfer(user, vault_balance)
+                            └── pendingInterest -= vault_balance
+```
+
+**Key design:** Supports partial vault payment. If vault insufficient, pays what's available and stores remainder for retry.
+
+### Burn NFT
+
+> **Source:** assignment.md §2.2, §3.1 point 5, §8.3 C1
+
+```
+User → SavingCore.burn(depositId)
+            │
+            ├── Verify: deposit is withdrawn (status != Active)  [§2.2]
+            ├── Verify: pendingInterest[depositId] == 0          [§8.3 C1]
+            └── _burn(depositId)                                 [§2.2]
+```
+
+**Key design:** Blocked if `pendingInterest > 0` — enforced via `_update()` override to prevent losing track of unpaid interest.
+
 ### Admin: Fund Vault
 
 > **Source:** assignment.md §4
@@ -269,21 +343,24 @@ All contracts must emit these events for frontend/indexer integration:
 |-------|----------|------|--------|
 | `PlanCreated(planId, tenorDays, aprBps)` | SavingCore | Admin creates a plan | §5 |
 | `PlanUpdated(planId, newAprBps)` | SavingCore | Admin updates plan APR | §5 |
+| `PlanEnabled(planId)` | SavingCore | Admin enables a plan | §4 |
+| `PlanDisabled(planId)` | SavingCore | Admin disables a plan | §4 |
 | `DepositOpened(depositId, owner, planId, principal, maturityAt, aprBpsAtOpen)` | SavingCore | User opens a deposit | §5 |
-| `Withdrawn(depositId, owner, principal, interest, isEarly)` | SavingCore | User withdraws | §5 |
+| `Withdrawn(depositId, owner, principal, interest, isEarly)` | SavingCore | User withdraws (maturity, early, or claimPrincipal) | §5 |
+| `InterestClaimed(depositId, to, amount)` | SavingCore | User claims interest (C1) | §8.3 C1 |
 | `Renewed(oldDepositId, newDepositId, newPrincipal, newPlanId)` | SavingCore | Manual or auto renew | §5 |
 | `VaultFunded(from, amount)` | VaultManager | Admin deposits tokens into the vault | §4 |
 | `VaultWithdrawn(to, amount)` | VaultManager | Admin withdraws tokens from the vault | §4 |
 | `FeeReceiverUpdated(newReceiver)` | VaultManager | Admin sets a new fee receiver address | §4 |
 | `InterestPaid(to, amount)` | VaultManager | SavingCore requests interest payout | §3.2, §6 Rule 5 |
-| `Paused(account)` | VaultManager | Admin pauses the system | §4, §6 Rule 6 |
-| `Unpaused(account)` | VaultManager | Admin unpauses the system | §4, §6 Rule 6 |
+
+**Note:** `Paused` and `Unpaused` events are emitted by OpenZeppelin's `Pausable` internally but are not defined in `Events.sol`.
 
 ---
 
 ## Design Principles
 
-> **Source:** assignment.md §1.1, §6, §10, §8.2 Q7
+> **Source:** assignment.md §1.1, §6, §10, §8.2 Q7, §8.3 C1
 
 | Principle | Rationale | Source |
 |-----------|-----------|--------|
@@ -292,6 +369,40 @@ All contracts must emit these events for frontend/indexer integration:
 | **Admin Cannot Alter Active Deposits** | Once opened, only the certificate owner can withdraw or renew. | §6 Rule 7 |
 | **Checks-Effects-Interactions** | Status updates happen before fund transfers to prevent reentrancy. | §8.2 Q7, §10 hints |
 | **Interface-First Development** | All contracts implement defined interfaces (`ISavingCore`, `IVaultManager`). | §1.1 table structure |
+| **Principal Safety (C1)** | Users can always reclaim principal, even during pauses or when vault is empty. `claimPrincipal` has no `whenNotPaused`. | §8.3 C1 |
+| **Partial Vault Payment** | Interest claims support partial payment when vault is insufficient. Remainder stored in `pendingInterest` for retry. | §8.3 C1 |
+
+---
+
+## Dual-Pause Architecture
+
+> **Source:** assignment.md §6 Rule 6, §8.3 C1
+
+The system has **two independent pause states** — one for SavingCore and one for VaultManager. They serve different security purposes and can be toggled independently.
+
+```
+┌─────────────────────────────────────┐     ┌─────────────────────────────────────┐
+│         SavingCore.pause()          │     │        VaultManager.pause()         │
+│─────────────────────────────────────│     │─────────────────────────────────────│
+│ Blocks:                             │     │ Blocks:                             │
+│   • withdrawAtMaturity              │     │   • withdrawVault                   │
+│   • claimInterest                   │     │                                     │
+│   • renewDeposit                    │     │ Does NOT block:                     │
+│   • autoRenewDeposit                │     │   • payInterest ( SavingCore can    │
+│                                     │     │     always pay interest to users)   │
+│ Does NOT block:                     │     │                                     │
+│   • claimPrincipal (always safe)    │     └─────────────────────────────────────┘
+│   • earlyWithdraw (always safe)     │
+│   • burn (no transfers)             │
+│   • openDeposit (new deposits OK)   │
+└─────────────────────────────────────┘
+```
+
+**Why two pause states?**
+
+1. **SavingCore pause** protects users from exploits in renew/withdraw flows while allowing principal reclaim (`claimPrincipal` has no `whenNotPaused`).
+2. **VaultManager pause** protects the vault from draining while allowing interest payments to continue (`payInterest` has no `whenNotPaused`).
+3. They serve different security purposes and may need to be toggled independently.
 
 ---
 
@@ -312,13 +423,13 @@ All contracts must emit these events for frontend/indexer integration:
 
 > **Source:** assignment.md §8.3 (up to +10 points)
 
-| ID | Challenge | Problem It Solves | Source |
-|----|-----------|-------------------|--------|
-| C1 | **Principal Protection** | If vault is empty at maturity, user can still withdraw principal; interest paid later when vault is funded. | §8.3 C1 |
-| C2 | **Solvency Guard** | Block `withdrawVault()` if it would make the vault unable to pay interest to active deposits. | §8.3 C2 |
-| C3 | **Partial Early Withdrawal** | Allow withdrawing part of principal early; penalty applies only to withdrawn portion. | §8.3 C3 |
-| C4 | **Top-Up Deposit** | Allow adding more principal to an active deposit with fair interest calculation. | §8.3 C4 |
-| C5 | **Your Own Idea** | Any real gap in the spec you identify and fix. | §8.3 C5 |
+| ID | Challenge | Problem It Solves | Status | Source |
+|----|-----------|-------------------|--------|--------|
+| C1 | **Principal Protection** | If vault is empty at maturity, user can still withdraw principal; interest paid later when vault is funded. | ✅ **Implemented** | §8.3 C1 |
+| C2 | **Solvency Guard** | Block `withdrawVault()` if it would make the vault unable to pay interest to active deposits. | ❌ Deferred | §8.3 C2 |
+| C3 | **Partial Early Withdrawal** | Allow withdrawing part of principal early; penalty applies only to withdrawn portion. | ❌ Not implemented | §8.3 C3 |
+| C4 | **Top-Up Deposit** | Allow adding more principal to an active deposit with fair interest calculation. | ❌ Not implemented | §8.3 C4 |
+| C5 | **Your Own Idea** | Any real gap in the spec you identify and fix. | ❌ Not implemented | §8.3 C5 |
 
 **Rules for bonus:** (1) base flows in §3 must still pass all tests; (2) each challenge needs its own tests; (3) each needs a README note. (§8.3)
 
