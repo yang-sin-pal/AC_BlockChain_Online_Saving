@@ -9,7 +9,6 @@ interface ISavingCore {
         Active,
         Withdrawn,
         PrincipalClaimed,
-        InterestClaimed,
         ManualRenewed,
         AutoRenewed
     }
@@ -27,10 +26,11 @@ interface ISavingCore {
         uint256 planId;            // Slot 1
         uint256 principal;         // Slot 2
         uint64 startAt;            // 8 bytes  ┐
-        uint64 maturityAt;         // 8 bytes  │ Slot 3 (21 bytes)
+        uint64 maturityAt;         // 8 bytes  │ Slot 3 (22 bytes)
         uint16 aprBpsAtOpen;       // 2 bytes  │
         uint16 penaltyBpsAtOpen;   // 2 bytes  │
-        Status status;             // 1 byte   ┘
+        Status status;             // 1 byte   │
+        bool interestClaimed;      // 1 byte   ┘
     }
 
     // ---------- Admin functions ----------

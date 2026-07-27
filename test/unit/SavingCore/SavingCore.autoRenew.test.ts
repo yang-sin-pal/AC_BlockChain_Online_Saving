@@ -31,9 +31,9 @@ describe("SavingCore — autoRenewDeposit", function () {
 
     await savingCore.connect(user).autoRenewDeposit(0);
 
-    // Old deposit status → AutoRenewed (enum 3)
+    // Old deposit status → AutoRenewed (enum 4)
     const oldDeposit = await savingCore.deposits(0);
-    expect(oldDeposit.status).to.equal(5); // Status.AutoRenewed
+    expect(oldDeposit.status).to.equal(4); // Status.AutoRenewed
 
     // New NFT minted to caller
     expect(await savingCore.ownerOf(1)).to.equal(await user.getAddress());
@@ -124,13 +124,13 @@ describe("SavingCore — autoRenewDeposit", function () {
 
   // ─── 7. Old deposit status → AutoRenewed ──────────────────────
 
-  it("#7 — old deposit status changes to AutoRenewed (enum 3)", async function () {
+  it("#7 — old deposit status changes to AutoRenewed (enum 4)", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithMaturedDepositPastGrace);
 
     await savingCore.connect(user).autoRenewDeposit(0);
 
     const oldDeposit = await savingCore.deposits(0);
-    expect(oldDeposit.status).to.equal(5); // Status.AutoRenewed
+    expect(oldDeposit.status).to.equal(4); // Status.AutoRenewed
   });
 
   // ─── 8. Double auto-renew → revert ────────────────────────────

@@ -42,16 +42,17 @@ describe("SavingCore — claimInterest", function () {
     expect(savingCoreBalAfter).to.equal(savingCoreBalBefore);
   });
 
-  // ─── 2. claimInterest: deposit status becomes InterestClaimed ───────
+  // ─── 2. claimInterest: interestClaimed flag set, status stays Active ──
 
-  it("#2 — claimInterest: sets status to InterestClaimed (3)", async function () {
+  it("#2 — claimInterest: sets interestClaimed=true, status stays Active (0)", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
     await savingCore.connect(user).claimInterest(0);
 
     const deposit = await savingCore.deposits(0);
-    expect(deposit.status).to.equal(3); // Status.InterestClaimed
+    expect(deposit.status).to.equal(0); // Status.Active
+    expect(deposit.interestClaimed).to.equal(true);
   });
 
   // ─── 3. claimInterest: NFT stays with caller (not burned) ──────────
@@ -144,7 +145,7 @@ describe("SavingCore — claimInterest", function () {
     const newDeposit = await savingCore.deposits(newDepositId);
 
     // Old deposit marked ManualRenewed
-    expect(oldDeposit.status).to.equal(4); // Status.ManualRenewed
+    expect(oldDeposit.status).to.equal(3); // Status.ManualRenewed
     // New principal = old principal only (interest was already paid out)
     expect(newDeposit.principal).to.equal(10_000_000_000n); // toUSDC(10_000)
     // Vault balance decreased by 0 (no vault call for InterestClaimed renewal)
