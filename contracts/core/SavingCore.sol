@@ -177,6 +177,38 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         deposits[depositId].status = newStatus;
     }
 
+    /// @notice Collects remaining principal and interest for a renewal.
+    /// @dev Pulls interest from vault into SavingCore via payInterest. Caller must
+    ///      settle status and mint the new deposit after this call (CEI order).
+    ///      Blocked when paused — vault interaction requires system to be live.
+    /// @param depositId ID of the deposit being renewed.
+    /// @return newPrincipal Total principal for the new deposit (remaining principal + interest).
+    function _collectRenewalPrincipal(uint256 depositId) internal whenNotPaused returns (uint256 newPrincipal) {
+        Deposit storage d = deposits[depositId];
+
+        // Principal contribution
+        if (d.status != Status.PrincipalClaimed) {
+            newPrincipal += d.principal;
+        }
+
+        // Interest contribution
+        if (!d.interestClaimed) {
+            uint256 interest;
+            if (d.status == Status.PrincipalClaimed) {
+                interest = pendingInterest[depositId];
+                pendingInterest[depositId] = 0;
+            } else {
+                interest = _calcInterest(depositId);
+            }
+            if (interest > 0) {
+                vaultManager.payInterest(address(this), interest);
+            }
+            newPrincipal += interest;
+        }
+
+        if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
+    }
+
     // ---------- User functions ----------
 
     /// @notice Opens a new term deposit for the given plan.
@@ -378,30 +410,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         if (newPlanId >= nextPlanId) revert SavingCore_PlanNotFound();
         if (!plans[newPlanId].enabled) revert SavingCore_PlanNotEnabled();
 
-        uint256 newPrincipal = 0;
-
-        // Principal contribution
-        if (oldDeposit.status != Status.PrincipalClaimed) {
-            newPrincipal += oldDeposit.principal;
-        }
-
-        // Interest contribution
-        if (!oldDeposit.interestClaimed) {
-            if (oldDeposit.status == Status.PrincipalClaimed) {
-                // Interest is in pendingInterest — pull from vault into SavingCore
-                uint256 interest = pendingInterest[depositId];
-                pendingInterest[depositId] = 0;
-                vaultManager.payInterest(address(this), interest);
-                newPrincipal += interest;
-            } else {
-                // Active: compound principal + interest from vault
-                uint256 interest = _calcInterest(depositId);
-                vaultManager.payInterest(address(this), interest);
-                newPrincipal += interest;
-            }
-        }
-
-        if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
+        uint256 newPrincipal = _collectRenewalPrincipal(depositId);
 
         // CEI: update old deposit status BEFORE external calls
         _settlePrincipal(depositId, Status.ManualRenewed);
@@ -439,28 +448,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint256 gracePeriodEnd = uint256(oldDeposit.maturityAt) + uint256(personalGracePeriod) * 86400;
         if (block.timestamp < gracePeriodEnd) revert SavingCore_GracePeriodNotElapsed();
 
-        uint256 newPrincipal = 0;
-
-        // Principal contribution
-        if (oldDeposit.status != Status.PrincipalClaimed) {
-            newPrincipal += oldDeposit.principal;
-        }
-
-        // Interest contribution
-        if (!oldDeposit.interestClaimed) {
-            if (oldDeposit.status == Status.PrincipalClaimed) {
-                uint256 interest = pendingInterest[depositId];
-                pendingInterest[depositId] = 0;
-                vaultManager.payInterest(address(this), interest);
-                newPrincipal += interest;
-            } else {
-                uint256 interest = _calcInterest(depositId);
-                vaultManager.payInterest(address(this), interest);
-                newPrincipal += interest;
-            }
-        }
-
-        if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
+        uint256 newPrincipal = _collectRenewalPrincipal(depositId);
 
         // CEI: update old deposit status BEFORE external calls
         _settlePrincipal(depositId, Status.AutoRenewed);
