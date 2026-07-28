@@ -7,6 +7,22 @@
 
 ---
 
+## Changelog vs v1
+
+| # | Vấn đề | v1 | v2 | Nguồn xác nhận |
+|---|--------|----|----|----------------|
+| 1 | Sai tên trường struct trong health.ts | `deposit.amount`, `deposit.openedAt`, `deposit.aprBps` | `deposit.principal`, `deposit.startAt`, `deposit.aprBpsAtOpen`; dùng `plan.tenorDays` thay vì tính từ timestamp | `ISavingCore.sol:25-34` Deposit struct, `InterestLib.sol:18` formula |
+| 2 | Công thức nợ lãi thiếu pendingInterest | Chỉ tính interest cho Active | Cộng thêm `Σ(pendingInterest(depositId))` cho PrincipalClaimed. Accessor: `savingCore.pendingInterest(depositId)` | `SavingCore.sol:30` mapping public |
+| 3 | Banner tạm dừng sai | "Tạm dừng sẽ ngăn tất cả giao dịch rút tiền và gia hạn" | "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. Vẫn hoạt động: rút gốc (C1), rút trước hạn, đốt NFT" | `SavingCore.sol:251,278,310,364,391,437,355` modifier declarations |
+| 4 | Mô tả C1 flow sai trong §5.2 | Chỉ "Nhận gốc" hiển thị khi Active+matured; "Nhận lãi" sau khi PrincipalClaimed | Cả "Nhận gốc" + "Nhận lãi" đều hiển thị khi Active+matured (claimInterest Path A hoạt động trên Active) | `SavingCore.sol:327-330` claimInterest Path A |
+| 5 | Badge "Đã rút một phần" không tồn tại | Hàng "🟡 Interest partial" trong bảng status | Xóa hàng này. PrincipalClaimed deposits có pendingInterest > 0 hiển thị sub-label dưới badge | `ISavingCore.sol:8-14` Status enum chỉ có 5 giá trị |
+| 6 | Điều kiện chết trong TODO.md | "PrincipalClaimed + interestClaimed=true" | Xóa — trạng thái này không tồn tại (khi interestClaimed=true, status chuyển Withdrawn nguyên tử) | `SavingCore.sol:341-348` claimInterest |
+| 7 | autoRenewDeposit cap enforcement | Được cho là thiếu | Xác nhận đã enforced transitively qua `_createDeposit` → `SavingCore_DepositAboveMax()`. Không có check riêng trong `autoRenewDeposit` | `SavingCore.sol:141` _createDeposit, `Errors.sol:5` |
+| 8 | minDeposit/maxDeposit = 0 hiển thị sai | "Tối thiểu: 0 USDC" | Hiển thị "Không giới hạn" khi giá trị = 0 | `ISavingCore.sol:56` NatSpec "0 = no limit" |
+| 9 | Thiếu bảng pause-state cho nút | Không có | Thêm sub-list nút nào bị vô hiệu hóa / vẫn hoạt động khi pause | `SavingCore.sol` modifier declarations |
+
+---
+
 ## 1. Tổng quan
 
 Xây dựng giao diện React kết nối MetaMask, cho phép người dùng:
@@ -228,11 +244,12 @@ cd frontend && npm run dev
 | Trạng thái | Badge | Màu | Ý nghĩa |
 |------------|-------|-----|---------|
 | Active | 🟢 Đang hoạt động | Xanh lá | Đang chờ đáo hạn |
-| PrincipalClaimed | 🔵 Đã rút gốc | Xanh dương | C1: đã nhận gốc, chờ nhận lãi |
-| Interest partial | 🟡 Đã rút một phần | Vàng | Đã nhận một phần lãi |
+| PrincipalClaimed | 🔵 Đã rút gốc | Xanh dương | C1: đã nhận gốc, chờ nhận lãi. Nếu `pendingInterest > 0` hiển thị sub-label: "còn X USDC lãi chờ nhận" |
 | Withdrawn | ⚫ Đã đóng | Xám đậm | Hoàn tất rút tiền |
 | ManualRenewed | 🟣 Đã gia hạn thủ công | Tím | Đã gia hạn bởi người dùng |
 | AutoRenewed | 🟠 Đã tự gia hạn | Cam | Đã tự động gia hạn |
+
+> **Lưu ý:** Không tồn tại on-chain status "Đã rút một phần". PrincipalClaimed deposits có `pendingInterest > 0` hiển thị sub-label bên dưới badge `PrincipalClaimed`, không dùng badge/màu riêng.
 
 ---
 
@@ -245,6 +262,8 @@ cd frontend && npm run dev
 - Subtitle: "Chọn gói phù hợp và bắt đầu tiết kiệm ngay hôm nay"
 - 3 card kế hoạch (hiển thị dạng grid 3 cột)
 - Mỗi card: tên gói, kỳ hạn, **4 ngày ân hạn**, APR, phạt, min/max, nút "Mở tài khoản"
+  - Nếu `minDeposit == 0`: hiển thị "Không giới hạn" thay vì "0 USDC"
+  - Nếu `maxDeposit == 0`: hiển thị "Không giới hạn" thay vì "0 USDC"
 - Grace period hiển thị rõ: "Kỳ hạn: 180 ngày — includes 4 ngày ân hạn trước khi áp dụng phạt"
 - Form mở tài khoản mới bên dưới:
   - Chọn kế hoạch (dropdown)
@@ -275,19 +294,30 @@ cd frontend && npm run dev
 | Trạng thái | Nút hiển thị | Hành động |
 |-----------|-------------|-----------|
 | Active + chưa đáo hạn | "Rút trước hạn" | earlyWithdraw (cảnh báo phạt) |
-| Active + đã đáo hạn | "Rút khi đáo hạn" | withdrawAtMaturity |
-| Active + đã đáo hạn | "Gia hạn" | renewDeposit (chọn gói mới) |
-| Active + C1 | "Nhận gốc" | claimPrincipal |
-| PrincipalClaimed | "Nhận lãi" | claimInterest |
-| PrincipalClaimed + interestClaimed | "Đóng khoản gửi" | burn |
-| Withdrawn | "Đốt NFT" | burn |
+| Active + đã đáo hạn | "Rút khi đáo hạn" + "Nhận gốc" + "Nhận lãi" + "Gia hạn" | withdrawAtMaturity / claimPrincipal / claimInterest / renewDeposit |
+| PrincipalClaimed | "Nhận lãi" + "Gia hạn" | claimInterest / renewDeposit |
+| Withdrawn / ManualRenewed / AutoRenewed | "Đốt NFT" | burn |
 
 **C1 Flow chi tiết:**
-1. Khoản gửi Active + đã đáo hạn → hiển thị 3 nút: "Rút gốc", "Nhận lãi", "Rút toàn bộ"
-2. Click "Rút gốc" → MetaMask → claimPrincipal → nhận gốc, lãi lưu pending
-3. Trạng thái chuyển thành "Đã rút gốc" → hiển thị nút "Nhận lãi"
-4. Click "Nhận lãi" → MetaMask → claimInterest → nhận lãi từ vault
-5. Hoàn tất → trạng thái "Đã đóng"
+
+Khoản gửi Active + đã đáo hạn hiển thị **đồng thời** cả 4 nút: "Rút khi đáo hạn", "Nhận gốc", "Nhận lãi", "Gia hạn". Người dùng có thể chọn bất kỳ luồng nào:
+
+**Phương án A — Rút toàn bộ (withdrawAtMaturity):**
+1. Click "Rút khi đáo hạn" → MetaMask → withdrawAtMaturity → nhận Principal + Interest một lần
+2. Trạng thái: Withdrawn
+
+**Phương án B — Tách riêng, nhận gốc trước (claimPrincipal → claimInterest):**
+1. Click "Nhận gốc" → MetaMask → claimPrincipal → nhận Principal, lãi lưu vào `pendingInterest`
+2. Trạng thái chuyển thành PrincipalClaimed
+3. Click "Nhận lãi" → MetaMask → claimInterest → nhận Interest từ vault
+4. Hoàn tất → trạng thái Withdrawn
+
+**Phương án C — Tách riêng, nhận lãi trước (claimInterest → claimPrincipal):**
+1. Click "Nhận lãi" → MetaMask → claimInterest (Path A: status Active) → nhận Interest từ vault, `interestClaimed = true`, status vẫn Active
+2. Click "Nhận gốc" → MetaMask → claimPrincipal → nhận Principal (thấy `interestClaimed == true` → status chuyển Withdrawn trực tiếp)
+3. Hoàn tất → trạng thái Withdrawn
+
+> **Lưu ý kỹ thuật:** `claimInterest` Path A hoạt động trên status `Active` (đã đáo hạn). Nó tính lãi, trả từ vault, đặt `interestClaimed = true` nhưng **không đổi status**. Do đó cả hai nút "Nhận gốc" và "Nhận lãi" đều khả dụng đồng thời.
 
 ### 5.3 Tab 3: Quản trị (AdminTab)
 
@@ -302,10 +332,19 @@ cd frontend && npm run dev
 - Tổng số khoản gửi
 
 **Phần 1b: Cảnh báo sức khỏe quỹ (Fund Health Warning)** ⚠️
-- Tính **Tổng nợ lãi** (total interest obligations): loop tất cả deposit có status == Active, tính lãi dự kiến cho mỗi khoản:
+- Tính **Tổng nợ lãi** (total interest obligations): loop tất cả deposits, cộng hai thành phần:
+  1. Deposits có `status == Active`: tính lãi dự kiến bằng `InterestLib` formula
+  2. Deposits có `status == PrincipalClaimed`: lấy `pendingInterest(depositId)` trực tiếp
   ```
-  interest = (deposit.amount * deposit.aprBps * (deposit.maturityAt - deposit.openedAt)) / (365 days * 10000)
-  totalObligations += interest
+  totalObligations = 0n
+  for each depositId:
+    deposit = savingCore.deposits(depositId)
+    if deposit.status == Active:
+      plan = savingCore.plans(deposit.planId)
+      interest = (deposit.principal * deposit.aprBpsAtOpen * plan.tenorDays) / (365n * 10_000n)
+      totalObligations += interest
+    else if deposit.status == PrincipalClaimed:
+      totalObligations += await savingCore.pendingInterest(depositId)
   ```
 - Hiển thị: "Tổng nợ lãi: X USDC"
 - **So sánh với số dư quỹ × 110%** (safety margin):
@@ -327,6 +366,10 @@ cd frontend && npm run dev
 - Nút "Tạm dừng hệ thống" (pause) — màu đỏ
 - Nút "Tiếp tục hệ thống" (unpause) — màu xanh
 - Hiển thị trạng thái hiện tại
+- **Cảnh báo pause:**
+  > "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. **Vẫn hoạt động:** rút gốc (C1), rút trước hạn, đốt NFT."
+  >
+  > Người dùng có thể toujours rút gốc và rút trước hạn ngay cả khi hệ thống tạm dừng.
 
 **Phần 5: Nhật ký hoạt động gần đây (Audit Log)** — Time-permitting
 - Truy vấn events bằng `queryFilter` từ cả 2 contracts:
@@ -365,7 +408,7 @@ cd frontend && npm run dev
 // Input: signer hoặc provider từ useWallet
 // Output: { savingCore, vaultManager, usdc } — typed contract instances
 // Đọc contract addresses từ config/contracts.json
-// Tự tạo contract instances với正确的 ABI
+// Tự tạo contract instances với đúng ABI
 ```
 
 ### 6.3 utils/format.ts
@@ -382,6 +425,7 @@ shortAddress(addr: string): string      // "0x1234...5678"
 
 ```ts
 // Tính tổng nợ lãi client-side (thay cho C2 on-chain tracking)
+// Hai thành phần: Active deposits (tính lãi) + PrincipalClaimed deposits (pendingInterest)
 async function calcTotalInterestObligations(
   savingCore: Contract,
   nextDepositId: bigint
@@ -390,9 +434,13 @@ async function calcTotalInterestObligations(
   for (let i = 1n; i < nextDepositId; i++) {
     const deposit = await savingCore.deposits(i);
     if (deposit.status === 0n) { // Active
-      const interest = (deposit.amount * deposit.aprBps * (deposit.maturityAt - deposit.openedAt))
-        / (365n * 86400n * 10000n);
+      const plan = await savingCore.plans(deposit.planId);
+      const interest = (deposit.principal * deposit.aprBpsAtOpen * plan.tenorDays)
+        / (365n * 10_000n);
       totalObligations += interest;
+    } else if (deposit.status === 2n) { // PrincipalClaimed
+      const pending = await savingCore.pendingInterest(i);
+      totalObligations += pending;
     }
   }
   return totalObligations;
@@ -444,12 +492,21 @@ isSupportedNetwork(chainId): boolean
 Phương án A: Rút toàn bộ (không có C1)
   [Rút khi đáo hạn] → MetaMask: withdrawAtMaturity → ✅ Nhận Principal + Interest
 
-Phương án B: Tách riêng (C1)
-  [Nhận gốc] → MetaMask: claimPrincipal → ✅ Nhận Principal
+Phương án B: Tách riêng — nhận gốc trước
+  [Nhận gốc] → MetaMask: claimPrincipal → ✅ Nhận Principal, lãi lưu pending
      ↓
   Trạng thái: PrincipalClaimed
      ↓
-  [Nhận lãi] → MetaMask: claimInterest → ✅ Nhận Interest
+  [Nhận lãi] → MetaMask: claimInterest → ✅ Nhận Interest từ vault
+     ↓
+  Trạng thái: Withdrawn
+
+Phương án C: Tách riêng — nhận lãi trước
+  [Nhận lãi] → MetaMask: claimInterest (Path A, status Active) → ✅ Nhận Interest, interestClaimed=true
+     ↓
+  Trạng thái: vẫn Active
+     ↓
+  [Nhận gốc] → MetaMask: claimPrincipal → ✅ Nhận Principal (thấy interestClaimed → Withdrawn)
      ↓
   Trạng thái: Withdrawn
 ```
@@ -473,6 +530,7 @@ Phương án B: Tách riêng (C1)
 Nạp quỹ:     [Nhập số tiền] → [Phê duyệt] → [Nạp tiền] → ✅ Vault: 200,000 USDC
 Tạo kế hoạch: [Điền form] → [Tạo] → ✅ Kế hoạch #3 đã tạo
 Tạm dừng:     [Tạm dừng] → MetaMask: pause → ✅ Hệ thống tạm dừng
+              ⚠️ Rút gốc + rút trước hạn + đốt NFT vẫn hoạt động
 ```
 
 ---
@@ -532,10 +590,10 @@ cd frontend && npm run dev
 | Xem tiền gửi | ✅ Danh sách với trạng thái, countdown, lãi dự kiến |
 | Rút tiền đáo hạn | ✅ withdrawAtMaturity, nhận principal + interest |
 | Rút trước hạn | ✅ earlyWithdraw, cảnh báo phạt |
-| C1: Tách gốc/lãi | ✅ claimPrincipal → claimInterest riêng biệt |
+| C1: Tách gốc/lãi | ✅ claimPrincipal → claimInterest riêng biệt (cả 2 nút đồng thời khi Active+matured) |
 | Gia hạn | ✅ renewDeposit với chọn gói mới |
 | Quản trị | ✅ Nạp quỹ, tạo kế hoạch, tạm dừng |
 | Grace period | ✅ Hiển thị 4 ngày ân hạn trên plan card + deposit maturity |
-| Fund health warning | ✅ Banner đỏ khi quỹ < 110% nợ lãi, banner xanh khi an toàn |
+| Fund health warning | ✅ Banner đỏ khi quỹ < 110% nợ lãi (bao gồm pendingInterest), banner xanh khi an toàn |
 | Responsive | ✅ Desktop + tablet |
 | Vietnamese UI | ✅ Tất cả labels bằng tiếng Việt |
