@@ -46,9 +46,9 @@ export default function ConnectWallet() {
     setError(null)
     try {
       const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, signer)
-      const tx = await usdc.mint(address, 10_000_000n)
+      const tx = await usdc.mint(address, 10_000_000_000n)
       await tx.wait()
-      setFaucetMsg('✅ Nhận 10 USDC thành công!')
+      setFaucetMsg('✅ Nhận 10,000 USDC thành công!')
       fetchBalance()
       setTimeout(() => setFaucetMsg(null), 3000)
     } catch (err: unknown) {
