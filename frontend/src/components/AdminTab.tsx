@@ -143,6 +143,11 @@ export default function AdminTab() {
     ? Math.min(Number((totalObligations * 10000n) / vaultBalance), 10000) / 100
     : 0
 
+  const penaltyParsed = parseInt(penaltyBps)
+  const penaltyError = !isNaN(penaltyParsed) && penaltyParsed > 3000
+    ? 'Phạt tối đa 3000 bps (30%)'
+    : ''
+
   const formatLimit = (value: bigint): string => {
     if (value === 0n) return 'Không giới hạn'
     return formatUSDC(value)
@@ -546,17 +551,21 @@ export default function AdminTab() {
           <div className="admin-form-field">
             <label className="admin-form-label">Phạt (bps)</label>
             <input className="input" type="number" placeholder="450" value={penaltyBps} onChange={e => setPenaltyBps(e.target.value)} disabled={createLoading} />
+            {penaltyError && <div className="admin-field-error">{penaltyError}</div>}
+            <div className="admin-form-hint">Tối đa 3000 bps (30%)</div>
           </div>
           <div className="admin-form-field">
             <label className="admin-form-label">Tối thiểu (USDC)</label>
             <input className="input" type="number" placeholder="100" value={minDeposit} onChange={e => setMinDeposit(e.target.value)} disabled={createLoading} />
+            <div className="admin-form-hint">Để trống = không giới hạn</div>
           </div>
           <div className="admin-form-field">
             <label className="admin-form-label">Tối đa (USDC)</label>
             <input className="input" type="number" placeholder="50000" value={maxDeposit} onChange={e => setMaxDeposit(e.target.value)} disabled={createLoading} />
+            <div className="admin-form-hint">Để trống = không giới hạn</div>
           </div>
           <div className="admin-form-field admin-form-field-btn">
-            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading || !tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit} style={{ width: '100%', marginTop: 22 }}>
+            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading || !tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit || !!penaltyError} style={{ width: '100%', marginTop: 22 }}>
               {createLoading ? 'Đang tạo...' : 'Tạo kế hoạch'}
             </button>
           </div>
