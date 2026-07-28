@@ -83,6 +83,37 @@ cd frontend && npm run dev
 
 ---
 
+## 8. User Roles
+
+### Admin (Deployer)
+- **Address:** `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- **Private key:** `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+- Contract owner (SavingCore + VaultManager) — full AdminTab access
+- 10,000 USDC from seed script
+
+### Normal User
+Import any other Hardhat account in MetaMask, e.g.:
+```
+Address:    0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Private key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+```
+- Can open deposits, withdraw, renew, burn NFTs — sees PlansTab + DepositsTab
+- AdminTab hidden (nav button does not appear for non-owners)
+- **0 USDC initially** — see below to get test USDC
+
+### How to Get USDC
+
+| Method | Steps |
+|--------|-------|
+| **Faucet button** (easiest) | After connecting MetaMask, click **"Nhận USDC thử"** in the header → MetaMask popup → confirm → instantly receive 10 USDC |
+| **Console mint** | Open browser console → `await ethereum.request({method:"eth_requestAccounts"})` → then call `MockUSDC.mint(yourAddress, 10000000)` via contract at `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
+| **Fund Vault (AdminTab)** | Admin only — enters amount → Approve → Fund (adds to vault, not to personal wallet) |
+| **Switch to deployer** | Import deployer private key → has 10,000 USDC from seed |
+
+> To add MockUSDC as a token in MetaMask for balance tracking: go to MetaMask → Tokens → Import Tokens → paste `0x5FbDB2315678afecb367f032d93F642f64180aa3` → Symbol: `mUSDC` → Decimals: `6`. This is **read-only** — you can only see your balance, you cannot mint from MetaMask's token UI.
+
+---
+
 ## Walkthrough — Step 1: PlansTab — View Plans & Open Deposit
 
 | Step | Action | Expected |

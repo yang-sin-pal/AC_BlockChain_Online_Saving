@@ -7,22 +7,25 @@ import MockUSDCAbi from '../abi/MockUSDC.json'
 import contractsConfig from '../config/contracts.json'
 
 export default function ConnectWallet() {
-  const { address, chainId, provider, isConnected, isCorrectNetwork, connect, switchNetwork } = useWallet()
+  const { address, chainId, provider, signer, isConnected, isCorrectNetwork, connect, switchNetwork } = useWallet()
   const [usdcBalance, setUsdcBalance] = useState<bigint>(0n)
   const [loading, setLoading] = useState(false)
+  const [faucetLoading, setFaucetLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [faucetMsg, setFaucetMsg] = useState<string | null>(null)
 
   const hasMetaMask = typeof window !== 'undefined' && !!window.ethereum
 
-  useEffect(() => {
+  const fetchBalance = () => {
     if (!address || !provider) {
       setUsdcBalance(0n)
       return
     }
-
     const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, provider)
     usdc.balanceOf(address).then(setUsdcBalance).catch(() => setUsdcBalance(0n))
-  }, [address, provider])
+  }
+
+  useEffect(fetchBalance, [address, provider])
 
   const handleConnect = async () => {
     setLoading(true)
@@ -33,6 +36,26 @@ export default function ConnectWallet() {
       setError(err instanceof Error ? err.message : 'Kết nối thất bại')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFaucet = async () => {
+    if (!signer || !address) return
+    setFaucetLoading(true)
+    setFaucetMsg(null)
+    setError(null)
+    try {
+      const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, signer)
+      const tx = await usdc.mint(address, 10_000_000n)
+      await tx.wait()
+      setFaucetMsg('✅ Nhận 10 USDC thành công!')
+      fetchBalance()
+      setTimeout(() => setFaucetMsg(null), 3000)
+    } catch (err: unknown) {
+      setFaucetMsg('❌ Thất bại')
+      setError(err instanceof Error ? err.message : 'Mint thất bại')
+    } finally {
+      setFaucetLoading(false)
     }
   }
 
@@ -81,6 +104,11 @@ export default function ConnectWallet() {
         </div>
       </div>
 
+      <button className="btn btn-outline" style={{ height: 30, fontSize: 11, padding: '0 10px' }}
+        onClick={handleFaucet} disabled={faucetLoading}>
+        {faucetLoading ? 'Đang mint...' : 'Nhận USDC thử'}
+      </button>
+
       <span className="badge badge-success">
         <span style={{
           width: 6, height: 6, borderRadius: '50%', background: '#16A34A',
@@ -93,6 +121,7 @@ export default function ConnectWallet() {
         {chainId === 31337 ? '🟢' : '🔵'} {getNetworkName(chainId ?? 0)}
       </span>
 
+      {faucetMsg && <span style={{ fontSize: 11, color: '#16A34A' }}>{faucetMsg}</span>}
       {error && <span style={{ fontSize: 11, color: '#DC2626' }}>{error}</span>}
     </div>
   )
