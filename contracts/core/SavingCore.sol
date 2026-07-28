@@ -22,6 +22,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     IERC20 public immutable usdc;
     IVaultManager public immutable vaultManager;
     uint256 public constant personalGracePeriod = 4; // days — personal variant (ID ending 38)
+    uint256 public constant MAX_PENALTY_BPS = 3000; // 30% ceiling — must stay <= 10_000 to guarantee no underflow in earlyWithdraw
 
     // depositId => Deposit
     mapping(uint256 => Deposit) public deposits;
@@ -70,6 +71,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         if (aprBps == 0) revert SavingCore_InvalidApr();
         if (minDeposit != 0 && maxDeposit != 0 && minDeposit > maxDeposit)
             revert SavingCore_InvalidDepositRange();
+        if (earlyWithdrawPenaltyBps > MAX_PENALTY_BPS) revert SavingCore_InvalidPenalty();
 
         planId = nextPlanId++;
         plans[planId] = Plan({
@@ -140,7 +142,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         Plan storage plan = plans[planId];
         if (plan.minDeposit != 0 && principal < plan.minDeposit) revert SavingCore_DepositBelowMin();
         if (plan.maxDeposit != 0 && principal > plan.maxDeposit) revert SavingCore_DepositAboveMax();
-        
+
         uint256 depositId = nextDepositId++;
         uint64 start_ = uint64(block.timestamp);
         uint64 maturity_ = uint64(block.timestamp + uint256(tenorDays) * 86400);

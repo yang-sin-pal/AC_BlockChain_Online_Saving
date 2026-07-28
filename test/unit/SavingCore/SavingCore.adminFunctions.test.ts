@@ -69,6 +69,26 @@ describe("SavingCore — admin functions", function () {
     ).to.be.revertedWithCustomError(savingCore, "SavingCore_InvalidApr");
   });
 
+  // ─── createPlan: penalty > MAX_PENALTY_BPS → revert ───────────
+
+  it("createPlan with earlyWithdrawPenaltyBps = 3001 → reverts InvalidPenalty", async function () {
+    const { savingCore, owner } = await loadFixture(fixtureWithPlan);
+
+    await expect(
+      savingCore.connect(owner).createPlan(180, 400, toUSDC(100), toUSDC(100_000), 3001),
+    ).to.be.revertedWithCustomError(savingCore, "SavingCore_InvalidPenalty");
+  });
+
+  // ─── createPlan: penalty = MAX_PENALTY_BPS (exact ceiling) → ok
+
+  it("createPlan with earlyWithdrawPenaltyBps = 3000 → succeeds (exact ceiling)", async function () {
+    const { savingCore, owner } = await loadFixture(fixtureWithPlan);
+
+    await expect(
+      savingCore.connect(owner).createPlan(180, 400, toUSDC(100), toUSDC(100_000), 3000),
+    ).to.emit(savingCore, "PlanCreated");
+  });
+
   // ─── createPlan: non-owner → revert ───────────────────────────
 
   it("non-owner calls createPlan → reverts (onlyOwner)", async function () {
