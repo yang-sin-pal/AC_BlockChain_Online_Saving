@@ -1,1 +1,38 @@
-/* Reset styles — will be populated in Task 4 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-primary: #D4A017;
+  --color-accent: #F5C242;
+  --color-success: #16A34A;
+  --color-danger: #DC2626;
+  --color-gold-progress: #E3B128;
+  --color-gold-text: #8A6A00;
+  --color-text: #1F1F1F;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-bg: #F9F9F7;
+  --color-card: #FFFFFF;
+  --color-border: #ECE8E1;
+  --color-success-bg: #E8F7EC;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
