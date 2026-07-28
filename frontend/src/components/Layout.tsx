@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import ConnectWallet from './ConnectWallet'
+import './Layout.css'
 
 export type TabId = 'plans' | 'deposits' | 'admin'
 

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useWallet } from '../hooks/useWallet'
 import { useContracts } from '../hooks/useContracts'
 import { formatUSDC, formatBps, formatDate, timeUntil } from '../utils/format'
+import './DepositsTab.css'
 
 const GRACE_PERIOD_DAYS = 4
 
@@ -58,6 +59,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   const [paused, setPaused] = useState(false)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const initialLoadDone = useRef(false)
 
   const [modal, setModal] = useState<ModalType>(null)
   const [modalDepositId, setModalDepositId] = useState<bigint | null>(null)
@@ -130,8 +132,11 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   }, [savingCore, address, planCache])
 
   useEffect(() => {
-    setLoading(true)
+    if (!initialLoadDone.current) {
+      setLoading(true)
+    }
     fetchData()
+    initialLoadDone.current = true
   }, [fetchData, refreshTrigger])
 
   const filteredDeposits = useMemo(() => {
@@ -524,13 +529,7 @@ function DepositCard({
               key={btn.key}
               className={`btn ${btn.style}`}
               disabled={blocked || isLoading(btn.key)}
-              onClick={() => {
-                if (btn.key === 'renew') {
-                  onAction(d.id, btn.key)
-                } else {
-                  onAction(d.id, btn.key)
-                }
-              }}
+              onClick={() => onAction(d.id, btn.key)}
             >
               {isLoading(btn.key) ? 'Đang xử lý...' : btn.label}
             </button>

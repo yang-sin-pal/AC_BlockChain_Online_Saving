@@ -4,6 +4,7 @@ import { useContracts } from '../hooks/useContracts'
 import { formatUSDC, parseUSDC, formatBps } from '../utils/format'
 import { calcTotalInterestObligations, checkFundHealth } from '../utils/health'
 import contractsConfig from '../config/contracts.json'
+import './AdminTab.css'
 
 interface PlanRow {
   id: number

@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useWallet } from '../hooks/useWallet'
 import { useContracts } from '../hooks/useContracts'
 import { formatUSDC, parseUSDC, formatBps } from '../utils/format'
 import contractsConfig from '../config/contracts.json'
+import './PlansTab.css'
 
 const GRACE_PERIOD_DAYS = 4
 
@@ -26,13 +27,13 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
   const [amount, setAmount] = useState('')
-  const [approved, setApproved] = useState(false)
   const [approveLoading, setApproveLoading] = useState(false)
   const [depositLoading, setDepositLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usdcBalance, setUsdcBalance] = useState(0n)
   const [fetching, setFetching] = useState(true)
   const [allowance, setAllowance] = useState(0n)
+  const approvedRef = useRef(false)
 
   useEffect(() => {
     if (!savingCore) return
@@ -73,8 +74,11 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
 
   useEffect(() => {
     if (!usdc || !address || !savingCore) return
-    usdc.allowance(address, contractsConfig.SavingCore).then(setAllowance).catch(() => setAllowance(0n))
-    setApproved(false)
+    usdc.allowance(address, contractsConfig.SavingCore).then((a: bigint) => {
+      setAllowance(a)
+      const amt = parseUSDC(amount)
+      approvedRef.current = amt > 0n && a >= amt
+    }).catch(() => setAllowance(0n))
   }, [usdc, address, savingCore, amount])
 
   const selectedPlan = useMemo(
@@ -99,14 +103,6 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
     return (derived.amountNum * BigInt(selectedPlan.aprBps) * BigInt(selectedPlan.tenorDays)) / (365n * 10_000n)
   }, [selectedPlan, derived])
 
-  const needsApprove = derived.amountNum > 0n && !approveLoading && !depositLoading
-
-  useEffect(() => {
-    if (!needsApprove || !approved) return
-    if (allowance >= derived.amountNum) return
-    setApproved(false)
-  }, [needsApprove, approved, allowance, derived.amountNum])
-
   const handleApprove = async () => {
     if (!usdc || !derived.isValid) return
     setApproveLoading(true)
@@ -117,7 +113,7 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
       const newAllowance = await usdc.allowance(address, contractsConfig.SavingCore)
       setAllowance(newAllowance)
       if (newAllowance >= derived.amountNum) {
-        setApproved(true)
+        approvedRef.current = true
       } else {
         setError('Phê duyệt không thành công. Vui lòng thử lại.')
       }

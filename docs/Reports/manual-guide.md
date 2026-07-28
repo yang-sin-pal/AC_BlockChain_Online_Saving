@@ -4,6 +4,26 @@
 
 ---
 
+## Quick Demo Script (5 min)
+
+```bash
+# Terminal 1: Start blockchain
+npx hardhat node
+
+# Terminal 2: Deploy + seed + start frontend
+npx hardhat run scripts/deploy.ts --network localhost
+npx hardhat run scripts/seed.ts --network localhost
+cd frontend && npm run dev
+```
+
+1. Open `http://localhost:3000` in browser
+2. **MetaMask:** Add network `http://127.0.0.1:8545` (chain ID 31337)
+3. **Import wallet:** `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+4. **Demo flow:** PlansTab → open a deposit → DepositsTab → AdminTab (pause, fund vault, create plan)
+5. **Switch wallets** (MetaMask) to see non-admin view / user view
+
+---
+
 ## Prerequisites
 
 ```bash
@@ -92,7 +112,7 @@ Before testing, open at least one deposit via PlansTab (select plan → approve 
 
 | Step | Action | Expected Result |
 |------|--------|----------------|
-| 1 | Navigate to "Tiền gửi của tôi" tab | Loading skeleton appears briefly (3 skeleton cards) |
+| 1 | Navigate to "Tiền gửi của tôi" tab | Loading skeleton appears briefly (initial load only). Subsequent tab switches show cached data instantly |
 | 2 | Wait for data load | Deposit card(s) appear with: `#1`, principal amount, plan name (e.g. "180 ngày"), APR (e.g. "4.00%"), maturity date, countdown ("còn X ngày" or "đã đáo hạn"), expected interest |
 | 3 | Verify status badge | 🟢 "Đang hoạt động" badge (green) for live deposits |
 | 4 | Check maturity date + grace period | Date shown + "Ân hạn: 4 ngày" row visible |
