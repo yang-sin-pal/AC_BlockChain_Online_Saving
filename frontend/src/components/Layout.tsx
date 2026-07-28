@@ -4,7 +4,7 @@ import './Layout.css'
 
 export type TabId = 'plans' | 'deposits' | 'admin'
 
-const TABS: { id: TabId; label: string }[] = [
+const ALL_TABS: { id: TabId; label: string }[] = [
   { id: 'plans', label: 'Kế hoạch' },
   { id: 'deposits', label: 'Tiền gửi của tôi' },
   { id: 'admin', label: 'Quản trị' },
@@ -20,9 +20,11 @@ interface LayoutProps {
   children: ReactNode
   activeTab: TabId
   onTabChange: (tab: TabId) => void
+  hideAdmin?: boolean
 }
 
-export default function Layout({ children, activeTab, onTabChange }: LayoutProps) {
+export default function Layout({ children, activeTab, onTabChange, hideAdmin }: LayoutProps) {
+  const tabs = hideAdmin ? ALL_TABS.filter((t) => t.id !== 'admin') : ALL_TABS
   return (
     <div className="app-wrapper">
       <div className="app-container">
@@ -34,7 +36,7 @@ export default function Layout({ children, activeTab, onTabChange }: LayoutProps
         <h1 className="app-title">{TITLES[activeTab]}</h1>
 
         <nav className="app-nav">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               className={`app-nav-btn${activeTab === tab.id ? ' active' : ''}`}
