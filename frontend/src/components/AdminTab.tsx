@@ -4,6 +4,7 @@ import { useContracts } from '../hooks/useContracts'
 import { formatUSDC, parseUSDC, formatBps } from '../utils/format'
 import { calcTotalInterestObligations, checkFundHealth } from '../utils/health'
 import contractsConfig from '../config/contracts.json'
+import AuditLog from './AuditLog'
 import './AdminTab.css'
 
 interface PlanRow {
@@ -479,6 +480,10 @@ export default function AdminTab() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="admin-section">
+        <AuditLog savingCore={savingCore} vaultManager={vaultManager} />
       </div>
     </div>
   )
