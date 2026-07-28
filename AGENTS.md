@@ -1,38 +1,38 @@
 # AGENTS.md
 
+## Project Status
+
+**Solidity complete — frontend in progress.** Deadline: 29/7/2026.
+
+| Task | Status |
+|------|--------|
+| 1. Deployment infrastructure | Done |
+| 2. Frontend scaffold | Done |
+| 3. Core utilities | Pending |
+| 4. Layout + header | Pending |
+| 5. PlansTab | Pending |
+| 6. DepositsTab | Pending |
+| 7. AdminTab | Pending |
+| 8. Polish + demo | Pending |
+| 9. Report writing | Pending |
+
 ## Commands
 
 ```bash
-npm install              # Install dependencies
-npx hardhat compile      # Compile contracts (Solidity 0.8.28, cancun EVM)
-npx hardhat test         # Run all tests (160 passing)
-npx hardhat coverage     # Run coverage report
+# Hardhat (from project root)
+npx hardhat compile
+npx hardhat test                        # 160 passing — NOT npm test (placeholder)
+npx hardhat node                        # start local blockchain
+npx hardhat run scripts/deploy.ts --network localhost
+npx hardhat run scripts/seed.ts --network localhost
+
+# Frontend (from frontend/)
+cd frontend && npm run dev              # dev server on port 3000
+cd frontend && npm run build            # tsc + vite build
+cd frontend && npm run lint             # oxlint
 ```
 
-**`npm test` is a placeholder** (`echo "Error: no test specified"`). Always use `npx hardhat test` directly. No lint, typecheck, or formatter is configured.
-
-## Dev Workflow
-
-**TDD is mandatory** — every feature follows RED → GREEN → REFACTOR per `PLAN.md`.
-
-1. **RED** — write failing tests first based on `docs/project/assignment.md`
-2. **GREEN** — write minimum Solidity to pass those tests
-3. **REFACTOR** — clean up, add NatSpec; tests must still pass
-
-A function is **not done** until: required test cases exist, every revert branch has a dedicated test, and `npx hardhat coverage` shows >90% for that function.
-
-## Project Status
-
-**Days 1–5 + C1 complete** — 160 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
-
-| Component | Status |
-|-----------|--------|
-| All `.sol` contracts | Complete — no stubs remain |
-| `test/unit/SavingCore/` | Complete — 4 files, 41 unit tests |
-| `test/unit/VaultManager/` | Complete — 8 files, 24 unit tests |
-| `test/integration/` | Complete — 8 files, 95 cross-contract tests |
-| `test/helpers/` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
-| `scripts/*.ts` | Stub comments only |
+**`npm test` (root)** is a placeholder. Always use `npx hardhat test`.
 
 ## Architecture
 
@@ -46,22 +46,16 @@ User → approve(MockUSDC) → SavingCore.transferFrom() → SavingCore → Vaul
 
 ### Dual-Pause Architecture
 
-SavingCore and VaultManager have **independent** pause switches:
-
 | Pause | Blocks | Does NOT block |
 |-------|--------|----------------|
 | **SavingCore.paused** | `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit` | `claimPrincipal`, `earlyWithdraw`, `openDeposit`, `burn` |
 | **VaultManager.paused** | `withdrawVault`, `payInterest` | `fundVault`, `setFeeReceiver`, `setSavingCore` |
 
-Key design decision: `claimPrincipal` and `earlyWithdraw` pay from SavingCore's own balance (no vault dependency), so they are deliberately NOT blocked by either pause. `claimInterest` IS blocked because it calls `payInterest` on the vault.
-
 ### C1 — Principal Protection
 
-`claimPrincipal(depositId)` pays principal immediately from SavingCore and stores interest in `pendingInterest[depositId]`. User later calls `claimInterest(depositId)` to claim from the vault. Supports partial vault payment — if vault has insufficient funds, user receives partial and can retry later. `interestClaimed` stays false until full amount is received.
+`claimPrincipal(depositId)` pays principal immediately from SavingCore, stores interest in `pendingInterest[depositId]`. User later calls `claimInterest(depositId)` to claim from vault. Supports partial vault payment. `interestClaimed` stays false until full amount received.
 
-`burn(depositId)` is blocked if `pendingInterest > 0` via `_update` override.
-
-Full architecture: `docs/design/system-architecture.md`
+`burn(depositId)` is blocked if `pendingInterest > 0`.
 
 ## Personal Variant (Student ID ending in 38)
 
@@ -72,68 +66,116 @@ Full architecture: `docs/design/system-architecture.md`
 | Early Withdrawal Penalty | 450 bps (4.50%) |
 | Default Tenor | 180 days |
 
+## Frontend
+
+### File Structure
+
+```
+frontend/src/
+├── abi/                    # ABI-only JSON (from Hardhat artifacts)
+│   ├── SavingCore.json     # 92 entries
+│   ├── VaultManager.json   # 36 entries
+│   └── MockUSDC.json       # 19 entries
+├── config/
+│   └── contracts.json      # Contract addresses (from deployments/localhost.json)
+├── App.tsx                 # Root component (to be split into tabs)
+├── App.css                 # Global styles (to be populated)
+└── index.css               # Reset styles (to be populated)
+```
+
+**Planned structure** (from `docs/reports/frontend-development-plan-v2.md` §2.2):
+```
+src/
+├── hooks/
+│   ├── useWallet.ts        # MetaMask connection state
+│   └── useContracts.ts     # Contract instances with signer/provider
+├── components/
+│   ├── Layout.tsx          # Sidebar + header wrapper
+│   ├── ConnectWallet.tsx   # Wallet connect button + balance + network
+│   ├── PlansTab.tsx        # Plan cards + open deposit form (§5.1)
+│   ├── DepositsTab.tsx     # Deposit list + action buttons (§5.2)
+│   └── AdminTab.tsx        # Admin dashboard (§5.3)
+└── utils/
+    ├── format.ts           # formatUSDC, parseUSDC, formatDate, timeUntil
+    ├── health.ts           # calcTotalInterestObligations, checkFundHealth
+    └── networks.ts         # Chain IDs, RPC URLs, network names
+```
+
+### Styling Reference
+
+**`Vietnamese Digital Banking App/src/App.tsx`** is the Figma-exported UI prototype. Use it as the styling reference:
+
+- **Copy inline styles** — colors, spacing, border-radius, shadows all match the palette
+- **Component structure** — `ScreenPlans`, `ScreenDeposits`, `ScreenAdmin` map to our tab components
+- **TypeScript types** — `Screen`, `DepositStatus` are defined and reusable
+- **Mock data shape** — `PLANS[]`, `DEPOSITS[]`, `ADMIN_RECENT[]` show expected data structures
+- **CSS variables** in `Vietnamese Digital Banking App/src/index.css` match our palette
+
+**Color palette** (from §4.1):
+| Role | Hex | Use |
+|------|-----|-----|
+| Primary | `#D4A017` | Header, sidebar, buttons |
+| Accent | `#F5C242` | Hover, active tab, badges |
+| Success | `#16A34A` | Active status, balance |
+| Danger | `#DC2626` | Errors, early withdraw |
+| Text | `#1F1F1F` | Primary text |
+| Text secondary | `#6B7280` | Labels, descriptions |
+| Background | `#F9F9F7` | Body |
+| Card | `#FFFFFF` | Cards, inputs |
+| Border | `#ECE8E1` | Cards, inputs |
+| Gold text | `#8A6A00` | Text on gold backgrounds |
+
+**Header:** Solid `#1F1F1F` — no gradient.
+
+### Contract Integration
+
+- ABIs: `frontend/src/abi/*.json` — extracted from `artifacts/contracts/`
+- Addresses: `frontend/src/config/contracts.json` — copied from `deployments/localhost.json`
+- Deployment addresses are **deterministic** — same addresses on every fresh `npx hardhat node` restart
+- Use `ethers@6` (already installed)
+
+### Component Mapping
+
+| Component | Plan Section | Key Features |
+|-----------|-------------|--------------|
+| `PlansTab.tsx` | §5.1 | 3 plan cards, deposit form, approve + open deposit flow |
+| `DepositsTab.tsx` | §5.2 | Filter pills, deposit cards, action buttons per status, C1 flow |
+| `AdminTab.tsx` | §5.3 | Stat cards, fund health warning, vault actions, plan table, audit log |
+| `ConnectWallet.tsx` | §4.3 | MetaMask connect, address display, USDC balance, network badge |
+| `Layout.tsx` | §4.3 | Sidebar (240px), header (solid #1F1F1F), content area (#F9F9F7) |
+
 ## Key Conventions
 
 - **Solidity 0.8.28**, `hardhat-toolbox` (TypeScript), EVM target `cancun`
-- **Custom errors** only — no `require(cond, "string")`. Define all in `Errors.sol`, named `ContractName_Reason` (e.g. `error SavingCore_PlanNotEnabled()`)
-- **Events** in past tense (`DepositOpened`, not `OpenDeposit`), defined in `Events.sol`
-- **NatSpec** required on all public/external functions (`@notice`, `@param`, `@return`). Comment the *reason*, not the variable name
-- **`nonReentrant`** outermost modifier (before `onlyOwner`, custom checks)
-- **Checks-Effects-Interactions** — update state before `transfer`/`transferFrom`
-- **SafeERC20** — always use `safeTransfer`/`safeTransferFrom`, never raw `IERC20.transfer`
-- **Interest formulas** in `InterestLib.sol` (`pure` functions), not inline in SavingCore. **Multiply before divide** to avoid rounding to zero
-- **Boundary at `maturityAt`**: use `>=` consistently (Design Q5)
+- **Custom errors** only — no `require(cond, "string")`. All in `Errors.sol`, named `ContractName_Reason`
+- **Events** in past tense (`DepositOpened`), defined in `Events.sol`
+- **SafeERC20** — always use `safeTransfer`/`safeTransferFrom`
+- **Interest formulas** in `InterestLib.sol` (`pure` functions). **Multiply before divide**
+- **Boundary at `maturityAt`**: use `>=` consistently
 - **APR/penalty snapshot** at deposit open time — never re-read plan values after deposit is opened
-- **`onlyDepositOwner(depositId)` modifier** — used on `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit`, `burn`. Replaces inline `ownerOf` checks. Do NOT add new inline checks; use the modifier.
-- **`whenNotPaused`** — applied only to vault-dependent operations. `claimPrincipal`, `earlyWithdraw`, `burn` deliberately omit it.
 
 Full conventions: `docs/project/code-convention.md`
 
-## Test Structure
+## Gotchas
 
-- **`test/unit/SavingCore/`** — 4 files:
-  - `SavingCore.openDeposit.test.ts` (11 tests)
-  - `SavingCore.adminFunctions.test.ts` (11 tests)
-  - `SavingCore.earlyWithdraw.test.ts` (9 tests)
-  - `SavingCore.pause.test.ts` (10 tests)
-- **`test/unit/VaultManager/`** — 8 files:
-  - `VaultManager.fundVault.test.ts` (3 tests)
-  - `VaultManager.withdrawVault.test.ts` (4 tests)
-  - `VaultManager.setFeeReceiver.test.ts` (2 tests)
-  - `VaultManager.pause.test.ts` (8 tests) — includes payInterest-while-paused tests
-  - `VaultManager.payInterest.test.ts` (2 tests)
-  - `VaultManager.setSavingCore.test.ts` (2 tests)
-  - `VaultManager.views.test.ts` (2 tests)
-  - `VaultManager.reentrancy.test.ts` (1 test)
-- **`test/integration/`** — 8 files:
-  - `PauseInteraction.test.ts` (9 tests) — cross-contract pause scenarios
-  - `SavingCore.withdrawAtMaturity.test.ts` (14 tests) — vault payment, vault insufficiency
-  - `SavingCore.autoRenew.test.ts` (14 tests) — auto-renew with vault-funded interest
-  - `SavingCore.renewDeposit.test.ts` (14 tests) — manual renewal with vault-funded interest
-  - `SavingCore.c1.test.ts` (18 tests) — C1: claimPrincipal, claimInterest, partial vault payment
-  - `SavingCore.interestClaim.test.ts` (15 tests) — claimInterest Path A/B, partial vault payment
-  - `SavingCore.reentrancy.test.ts` (4 tests) — reentrancy across SavingCore↔VaultManager
-  - `SavingCore.coverage.test.ts` (7 tests) — branch coverage gap fixes
-- **`test/helpers/`** — Shared fixtures and utilities. **Import from here, not inline.**
-  - `fixtures.ts`: `deployAllContractsFixture` (full setup), `fixtureWithPlan` (with default plan), `deployVaultManager` (minimal, no vault funding)
-  - `utils.ts`: `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`
-  - `constants.ts`: `DEFAULT_TENOR`, `DEFAULT_APR`, `PENALTY`, `SECONDS_PER_DAY`, etc.
-- **Test standard**: `docs/project/test-standard.md` — every function needs boundary cases (exact maturityAt second, rounding dust, double withdraw, reentrancy, vault insufficient, plan disabled mid-flight, APR snapshot immutability). Coverage >90% is necessary but not sufficient.
-- **Business rules**: `docs/design/business-rules.md` — 21 rules (BR-01 to BR-21).
+- `npm test` (root) is a placeholder — use `npx hardhat test`
+- No `.env` committed — Hardhat local chain only. `.env` needed only for Sepolia
+- `typechain-types/` is gitignored — regenerate with `npx hardhat compile`
+- OZ v5: `Ownable2Step` constructor requires `Ownable(msg.sender)`
+- Deployment addresses are deterministic — same on every fresh node restart
+- `autoRenewDeposit` has no owner check — anyone (bot) can call it. Intentional.
+- C1 `claimInterest` has two paths: **Path A** (Active — vault pays) and **Path B** (PrincipalClaimed — pays from `pendingInterest`)
+- VaultManager's `payInterest` is `onlySavingCore` — use `impersonateAccount` in tests
+- `burn` has no `nonReentrant` and no `whenNotPaused` — safe, no external calls
+- Figma prototype (`Vietnamese Digital Banking App/`) uses inline styles, not CSS classes — reference for styling, not architecture
+- Frontend uses `oxlint` for linting, not eslint
 
 ## Docs
 
-Key reference docs: `docs/project/assignment.md`, `docs/project/code-convention.md`, `docs/project/test-standard.md`, `docs/design/business-rules.md`, `docs/design/system-architecture.md`. Reports under `docs/reports/progress/` and bug notes under `docs/reports/bugs/`.
-
-## Gotchas
-
-- `package.json` test script is a placeholder — use `npx hardhat test`
-- No `.env` committed, no network config — Hardhat local chain only
-- `typechain-types/` is gitignored — regenerate with `npx hardhat compile`
-- OZ v5: `Ownable2Step` constructor requires `Ownable(msg.sender)`, not `Ownable()`
-- Test fixtures use `loadFixture()` from hardhat-network-helpers — each test gets a fresh snapshot, no shared state between tests
-- VaultManager's `payInterest` is `onlySavingCore` — tests that call it directly must use `impersonateAccount` to simulate SavingCore calls
-- `burn` has no `nonReentrant` (safe — `_burn` makes no external calls) and no `whenNotPaused`
-- C1 `claimInterest` has two code paths: **Path A** (Active status — vault pays directly) and **Path B** (PrincipalClaimed — pays from `pendingInterest`). Tests must cover both.
-- `autoRenewDeposit` has no owner check — anyone (bot) can call it. This is intentional.
-- Integration tests import from `../helpers/` (one level up). Unit tests import from `../../helpers/` (two levels up). Moving test files between directories requires fixing these paths.
+Key reference docs:
+- `docs/project/assignment.md` — requirements
+- `docs/project/code-convention.md` — coding standards
+- `docs/design/business-rules.md` — 21 rules (BR-01 to BR-21)
+- `docs/design/system-architecture.md` — full architecture
+- `docs/reports/frontend-development-plan-v2.md` — frontend plan with UI/UX design (§4), component details (§5), transaction flows (§7)
+- `Vietnamese Digital Banking App/src/App.tsx` — Figma UI prototype (styling reference)
