@@ -112,6 +112,12 @@
   gap: 12px;
 }
 
+.admin-vault-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
 .admin-section {
   background: var(--color-card);
   border: 1.5px solid var(--color-border);
@@ -163,6 +169,16 @@
   font-size: 12px;
   color: var(--color-text-muted);
   margin-top: 10px;
+}
+
+.admin-address-display {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: var(--color-text);
+  padding: 10px 14px;
+  background: var(--color-bg);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
 }
 
 .admin-form-grid {

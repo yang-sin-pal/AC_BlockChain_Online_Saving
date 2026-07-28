@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '../hooks/useWallet'
 import { useContracts } from '../hooks/useContracts'
 import { formatUSDC, parseUSDC, formatBps } from '../utils/format'
-import { calcTotalInterestObligations, checkFundHealth } from '../utils/health'
+import { calcTotalInterestObligations, calcActivePrincipal, checkFundHealth } from '../utils/health'
 import contractsConfig from '../config/contracts.json'
 import AuditLog from './AuditLog'
 import './AdminTab.css'
@@ -26,8 +26,7 @@ export default function AdminTab() {
   const [loading, setLoading] = useState(true)
 
   const [vaultBalance, setVaultBalance] = useState(0n)
-  const [adminBalance, setAdminBalance] = useState(0n)
-  const [totalDeposits, setTotalDeposits] = useState(0n)
+  const [activePrincipal, setActivePrincipal] = useState(0n)
   const [totalObligations, setTotalObligations] = useState(0n)
   const [scPaused, setScPaused] = useState(false)
   const [vmPaused, setVmPaused] = useState(false)
@@ -37,6 +36,13 @@ export default function AdminTab() {
   const [fundAllowance, setFundAllowance] = useState(0n)
   const [fundApproveLoading, setFundApproveLoading] = useState(false)
   const [fundLoading, setFundLoading] = useState(false)
+
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawLoading, setWithdrawLoading] = useState(false)
+
+  const [currentFeeReceiver, setCurrentFeeReceiver] = useState('')
+  const [newFeeReceiver, setNewFeeReceiver] = useState('')
+  const [feeReceiverLoading, setFeeReceiverLoading] = useState(false)
 
   const [tenorDays, setTenorDays] = useState('')
   const [aprBps, setAprBps] = useState('')
@@ -69,17 +75,16 @@ export default function AdminTab() {
         return
       }
 
-      const [vb, ab, td, tp, scp, vmp] = await Promise.all([
+      const [vb, td, tp, scp, vmp, fr] = await Promise.all([
         vaultManager.vaultBalance(),
-        usdc.balanceOf(address),
         savingCore.nextDepositId(),
         savingCore.nextPlanId(),
         savingCore.paused(),
         vaultManager.paused(),
+        vaultManager.feeReceiver(),
       ])
       setVaultBalance(vb)
-      setAdminBalance(ab)
-      setTotalDeposits(td - 1n)
+      setCurrentFeeReceiver(fr)
 
       const scPausedRaw = scp
       setScPaused(scPausedRaw)
@@ -89,8 +94,12 @@ export default function AdminTab() {
         setLoading(false)
       }
 
-      const obligations = await calcTotalInterestObligations(savingCore, td)
+      const [obligations, activeP] = await Promise.all([
+        calcTotalInterestObligations(savingCore, td),
+        calcActivePrincipal(savingCore, td),
+      ])
       setTotalObligations(obligations)
+      setActivePrincipal(activeP)
 
       const planRows: PlanRow[] = []
       for (let i = 0n; i < tp; i++) {
@@ -124,6 +133,7 @@ export default function AdminTab() {
 
   const fundAmountParsed = parseUSDC(fundAmount)
   const fundApproved = fundAmountParsed > 0n && fundAllowance >= fundAmountParsed
+  const withdrawParsed = parseUSDC(withdrawAmount)
 
   const health = checkFundHealth(vaultBalance, totalObligations)
 
@@ -162,6 +172,38 @@ export default function AdminTab() {
       setError(err instanceof Error ? err.message : 'Nạp quỹ thất bại')
     } finally {
       setFundLoading(false)
+    }
+  }
+
+  const handleWithdrawVault = async () => {
+    if (!vaultManager || withdrawParsed <= 0n || withdrawParsed > vaultBalance) return
+    setWithdrawLoading(true)
+    setError(null)
+    try {
+      const tx = await vaultManager.withdrawVault(withdrawParsed)
+      await tx.wait()
+      setWithdrawAmount('')
+      refresh()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Rút quỹ thất bại')
+    } finally {
+      setWithdrawLoading(false)
+    }
+  }
+
+  const handleSetFeeReceiver = async () => {
+    if (!vaultManager || !/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver)) return
+    setFeeReceiverLoading(true)
+    setError(null)
+    try {
+      const tx = await vaultManager.setFeeReceiver(newFeeReceiver)
+      await tx.wait()
+      setNewFeeReceiver('')
+      refresh()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Cập nhật địa chỉ thất bại')
+    } finally {
+      setFeeReceiverLoading(false)
     }
   }
 
@@ -215,16 +257,17 @@ export default function AdminTab() {
     }
   }
 
-  const handlePause = async (target: 'sc' | 'vm', pause: boolean) => {
+  const handleTogglePause = async () => {
     if (!savingCore || !vaultManager) return
-    const key = `${target}-${pause ? 'pause' : 'unpause'}`
-    setPauseLoading(key)
+    const shouldPause = !scPaused && !vmPaused
+    setPauseLoading(shouldPause ? 'pause' : 'unpause')
     setError(null)
     try {
-      const tx = target === 'sc'
-        ? (pause ? await savingCore.pause() : await savingCore.unpause())
-        : (pause ? await vaultManager.pause() : await vaultManager.unpause())
-      await tx.wait()
+      const calls = shouldPause
+        ? [savingCore.pause(), vaultManager.pause()]
+        : [savingCore.unpause(), vaultManager.unpause()]
+      const [tx1, tx2] = await Promise.all(calls)
+      await Promise.all([tx1.wait(), tx2.wait()])
       refresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Thay đổi trạng thái thất bại')
@@ -281,15 +324,15 @@ export default function AdminTab() {
           </div>
         </div>
         <div className="admin-stat-card">
-          <div className="admin-stat-label">Số dư USDC</div>
-          <div className="admin-stat-value">
-            {formatUSDC(adminBalance)} <span className="admin-stat-unit">USDC</span>
+          <div className="admin-stat-label">Tổng nghĩa vụ lãi</div>
+          <div className="admin-stat-value" style={{ color: 'var(--color-danger)' }}>
+            {formatUSDC(totalObligations)} <span className="admin-stat-unit">USDC</span>
           </div>
         </div>
         <div className="admin-stat-card">
-          <div className="admin-stat-label">Tổng khoản gửi</div>
+          <div className="admin-stat-label">Tổng tiền gửi hoạt động</div>
           <div className="admin-stat-value" style={{ color: 'var(--color-primary)' }}>
-            {totalDeposits.toString()}
+            {formatUSDC(activePrincipal)} <span className="admin-stat-unit">USDC</span>
           </div>
         </div>
       </div>
@@ -312,39 +355,22 @@ export default function AdminTab() {
         </div>
       )}
 
-      <div className="admin-action-grid">
-        {scPaused ? (
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+        {(scPaused || vmPaused) ? (
           <button
             className="btn btn-success"
-            disabled={pauseLoading === 'sc-unpause'}
-            onClick={() => handlePause('sc', false)}
+            disabled={pauseLoading !== null}
+            onClick={handleTogglePause}
           >
-            {pauseLoading === 'sc-unpause' ? 'Đang xử lý...' : 'Tiếp tục hệ thống'}
+            {pauseLoading !== null ? 'Đang xử lý...' : 'Tiếp tục'}
           </button>
         ) : (
           <button
             className="btn btn-danger"
-            disabled={pauseLoading === 'sc-pause'}
-            onClick={() => handlePause('sc', true)}
+            disabled={pauseLoading !== null}
+            onClick={handleTogglePause}
           >
-            {pauseLoading === 'sc-pause' ? 'Đang xử lý...' : 'Tạm dừng hệ thống'}
-          </button>
-        )}
-        {vmPaused ? (
-          <button
-            className="btn btn-success"
-            disabled={pauseLoading === 'vm-unpause'}
-            onClick={() => handlePause('vm', false)}
-          >
-            {pauseLoading === 'vm-unpause' ? 'Đang xử lý...' : 'Tiếp tục quỹ'}
-          </button>
-        ) : (
-          <button
-            className="btn btn-danger"
-            disabled={pauseLoading === 'vm-pause'}
-            onClick={() => handlePause('vm', true)}
-          >
-            {pauseLoading === 'vm-pause' ? 'Đang xử lý...' : 'Tạm dừng quỹ'}
+            {pauseLoading !== null ? 'Đang xử lý...' : 'Tạm dừng'}
           </button>
         )}
       </div>
@@ -359,8 +385,9 @@ export default function AdminTab() {
         </div>
       )}
 
-      <div className="admin-section">
-        <h3 className="admin-section-title">Nạp tiền vào quỹ</h3>
+      <div className="admin-vault-sections">
+        <div className="admin-section">
+          <h3 className="admin-section-title">Nạp tiền vào quỹ</h3>
         <div className="admin-form-row">
           <div className="admin-form-field">
             <label className="admin-form-label">SỐ TIỀN (USDC)</label>
@@ -397,6 +424,82 @@ export default function AdminTab() {
         <div className="admin-form-hint">
           Số dư quỹ hiện tại: {formatUSDC(vaultBalance)} USDC
         </div>
+      </div>
+
+      <div className="admin-section">
+        <h3 className="admin-section-title">Rút tiền từ quỹ</h3>
+        <div className="admin-form-row">
+          <div className="admin-form-field">
+            <label className="admin-form-label">SỐ TIỀN (USDC)</label>
+            <input
+              className="input"
+              type="number"
+              placeholder="0"
+              value={withdrawAmount}
+              onChange={e => setWithdrawAmount(e.target.value)}
+              disabled={withdrawLoading}
+            />
+          </div>
+          <div className="admin-form-actions">
+            <button
+              className="btn btn-danger"
+              disabled={withdrawParsed <= 0n || withdrawParsed > vaultBalance || withdrawLoading}
+              onClick={handleWithdrawVault}
+            >
+              {withdrawLoading ? 'Đang rút tiền...' : 'Rút tiền'}
+            </button>
+          </div>
+        </div>
+        <div className="admin-form-hint">
+          Số dư quỹ hiện tại: {formatUSDC(vaultBalance)} USDC
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-section">
+        <h3 className="admin-section-title">Người nhận phí</h3>
+        <div className="admin-form-row">
+          <div className="admin-form-field" style={{ flex: 1 }}>
+            <label className="admin-form-label">ĐỊA CHỈ HIỆN TẠI</label>
+            <div className="admin-address-display">
+              {currentFeeReceiver
+                ? `${currentFeeReceiver.slice(0, 6)}...${currentFeeReceiver.slice(-5)}`
+                : 'Chưa thiết lập'}
+            </div>
+          </div>
+        </div>
+        <div className="admin-form-row">
+          <div className="admin-form-field" style={{ flex: 1 }}>
+            <label className="admin-form-label">ĐỊA CHỈ MỚI</label>
+            <input
+              className="input"
+              type="text"
+              placeholder="0x..."
+              value={newFeeReceiver}
+              onChange={e => setNewFeeReceiver(e.target.value)}
+              disabled={feeReceiverLoading}
+            />
+          </div>
+          <div className="admin-form-actions">
+            <button
+              className="btn btn-primary"
+              disabled={!/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver) || feeReceiverLoading}
+              onClick={handleSetFeeReceiver}
+            >
+              {feeReceiverLoading ? 'Đang cập nhật...' : 'Cập nhật'}
+            </button>
+          </div>
+        </div>
+        {address && (
+          <div className="admin-form-hint">
+            <span
+              style={{ cursor: 'pointer', color: 'var(--color-primary)', textDecoration: 'underline' }}
+              onClick={() => setNewFeeReceiver(address)}
+            >
+              Dùng địa chỉ của tôi
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="admin-section">

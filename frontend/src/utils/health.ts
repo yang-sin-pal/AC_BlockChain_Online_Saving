@@ -20,6 +20,19 @@ export async function calcTotalInterestObligations(
   return total
 }
 
+export async function calcActivePrincipal(
+  savingCore: Contract,
+  nextDepositId: bigint
+): Promise<bigint> {
+  let total = 0n
+  for (let i = 1n; i < nextDepositId; i++) {
+    const d = await savingCore.deposits(i)
+    const status = Number(d.status)
+    if (status === 0) total += d.principal
+  }
+  return total
+}
+
 export function checkFundHealth(
   vaultBalance: bigint,
   totalObligations: bigint
