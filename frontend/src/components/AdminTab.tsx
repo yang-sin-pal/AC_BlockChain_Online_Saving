@@ -214,17 +214,29 @@ export default function AdminTab() {
 
   const handleCreatePlan = async () => {
     if (!savingCore) return
+    if (!tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit) {
+      setError('Vui lòng điền đầy đủ tất cả các trường')
+      return
+    }
     const td = parseInt(tenorDays)
     const ap = parseInt(aprBps)
     const pp = parseInt(penaltyBps)
-    const minD = parseUSDC(minDeposit)
-    const maxD = parseUSDC(maxDeposit)
+    if (isNaN(td) || isNaN(ap) || isNaN(pp)) {
+      setError('Giá trị không hợp lệ')
+      return
+    }
     if (td <= 0 || ap <= 0) {
       setError('Kỳ hạn và APR phải lớn hơn 0')
       return
     }
-    if (pp > 10000) {
-      setError('Phạt không thể vượt quá 10000 bps (100%)')
+    if (pp > 3000) {
+      setError('Phạt không thể vượt quá 3000 bps (30%)')
+      return
+    }
+    const minD = parseUSDC(minDeposit)
+    const maxD = parseUSDC(maxDeposit)
+    if (minD > 0n && maxD > 0n && minD > maxD) {
+      setError('Tối thiểu không thể lớn hơn tối đa')
       return
     }
     setCreateLoading(true)
@@ -543,7 +555,7 @@ export default function AdminTab() {
             <input className="input" type="number" placeholder="50000" value={maxDeposit} onChange={e => setMaxDeposit(e.target.value)} disabled={createLoading} />
           </div>
           <div className="admin-form-field admin-form-field-btn">
-            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading} style={{ width: '100%', marginTop: 22 }}>
+            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading || !tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit} style={{ width: '100%', marginTop: 22 }}>
               {createLoading ? 'Đang tạo...' : 'Tạo kế hoạch'}
             </button>
           </div>
