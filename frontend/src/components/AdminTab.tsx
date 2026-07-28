@@ -143,9 +143,28 @@ export default function AdminTab() {
     ? Math.min(Number((totalObligations * 10000n) / vaultBalance), 10000) / 100
     : 0
 
-  const penaltyParsed = parseInt(penaltyBps)
-  const penaltyError = !isNaN(penaltyParsed) && penaltyParsed > 3000
-    ? 'Phạt tối đa 3000 bps (30%)'
+  const tdParsed = parseInt(tenorDays)
+  const apParsed = parseInt(aprBps)
+  const ppParsed = parseInt(penaltyBps)
+
+  const tenorError = !isNaN(tdParsed) && tdParsed <= 0 ? 'Kỳ hạn phải lớn hơn 0' : ''
+  const aprError = !isNaN(apParsed) && apParsed <= 0 ? 'APR phải lớn hơn 0' : ''
+  const penaltyError = !isNaN(ppParsed) && (ppParsed > 3000 || ppParsed < 0)
+    ? ppParsed > 3000 ? 'Phạt tối đa 3000 bps (30%)' : 'Phạt không thể âm'
+    : ''
+
+  const minDParsed = parseUSDC(minDeposit)
+  const maxDParsed = parseUSDC(maxDeposit)
+  const minMaxError = minDParsed > 0n && maxDParsed > 0n && minDParsed > maxDParsed
+    ? 'Tối thiểu không thể lớn hơn tối đa'
+    : ''
+
+  const fundError = fundAmount && fundAmountParsed <= 0n ? 'Số tiền phải lớn hơn 0' : ''
+  const withdrawError = withdrawAmount && (withdrawParsed <= 0n || withdrawParsed > vaultBalance)
+    ? withdrawParsed <= 0n ? 'Số tiền phải lớn hơn 0' : 'Số tiền vượt quá số dư quỹ'
+    : ''
+  const feeReceiverError = newFeeReceiver && !/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver)
+    ? 'Địa chỉ không hợp lệ'
     : ''
 
   const formatLimit = (value: bigint): string => {
@@ -154,7 +173,10 @@ export default function AdminTab() {
   }
 
   const handleFundApprove = async () => {
-    if (!usdc || fundAmountParsed <= 0n) return
+    if (!usdc || fundAmountParsed <= 0n) {
+      setError('Số tiền không hợp lệ')
+      return
+    }
     setFundApproveLoading(true)
     setError(null)
     try {
@@ -170,7 +192,10 @@ export default function AdminTab() {
   }
 
   const handleFundVault = async () => {
-    if (!vaultManager || fundAmountParsed <= 0n) return
+    if (!vaultManager || fundAmountParsed <= 0n) {
+      setError('Số tiền không hợp lệ')
+      return
+    }
     setFundLoading(true)
     setError(null)
     try {
@@ -187,7 +212,10 @@ export default function AdminTab() {
   }
 
   const handleWithdrawVault = async () => {
-    if (!vaultManager || withdrawParsed <= 0n || withdrawParsed > vaultBalance) return
+    if (!vaultManager || withdrawParsed <= 0n || withdrawParsed > vaultBalance) {
+      setError('Số tiền không hợp lệ')
+      return
+    }
     setWithdrawLoading(true)
     setError(null)
     try {
@@ -203,7 +231,10 @@ export default function AdminTab() {
   }
 
   const handleSetFeeReceiver = async () => {
-    if (!vaultManager || !/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver)) return
+    if (!vaultManager || !/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver)) {
+      setError('Địa chỉ không hợp lệ')
+      return
+    }
     setFeeReceiverLoading(true)
     setError(null)
     try {
@@ -220,31 +251,11 @@ export default function AdminTab() {
 
   const handleCreatePlan = async () => {
     if (!savingCore) return
-    if (!tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit) {
-      setError('Vui lòng điền đầy đủ tất cả các trường')
-      return
-    }
-    const td = parseInt(tenorDays)
-    const ap = parseInt(aprBps)
-    const pp = parseInt(penaltyBps)
-    if (isNaN(td) || isNaN(ap) || isNaN(pp)) {
-      setError('Giá trị không hợp lệ')
-      return
-    }
-    if (td <= 0 || ap <= 0) {
-      setError('Kỳ hạn và APR phải lớn hơn 0')
-      return
-    }
-    if (pp > 3000) {
-      setError('Phạt không thể vượt quá 3000 bps (30%)')
-      return
-    }
-    const minD = parseUSDC(minDeposit)
-    const maxD = parseUSDC(maxDeposit)
-    if (minD > 0n && maxD > 0n && minD > maxD) {
-      setError('Tối thiểu không thể lớn hơn tối đa')
-      return
-    }
+    const td = tdParsed
+    const ap = apParsed
+    const pp = ppParsed
+    const minD = minDParsed
+    const maxD = maxDParsed
     setCreateLoading(true)
     setError(null)
     try {
@@ -434,11 +445,12 @@ export default function AdminTab() {
               onChange={e => setFundAmount(e.target.value)}
               disabled={fundLoading}
             />
+            {fundError && <div className="admin-field-error">{fundError}</div>}
           </div>
           <div className="admin-form-actions">
             <button
               className={`btn ${fundApproved ? 'btn-outline' : 'btn-primary'}`}
-              disabled={fundAmountParsed <= 0n || fundApproved || fundApproveLoading}
+              disabled={fundAmountParsed <= 0n || fundApproved || fundApproveLoading || !!fundError}
               onClick={handleFundApprove}
             >
               {fundApproveLoading
@@ -474,11 +486,12 @@ export default function AdminTab() {
               onChange={e => setWithdrawAmount(e.target.value)}
               disabled={withdrawLoading}
             />
+            {withdrawError && <div className="admin-field-error">{withdrawError}</div>}
           </div>
           <div className="admin-form-actions">
             <button
               className="btn btn-danger"
-              disabled={withdrawParsed <= 0n || withdrawParsed > vaultBalance || withdrawLoading}
+              disabled={withdrawParsed <= 0n || withdrawParsed > vaultBalance || withdrawLoading || !!withdrawError}
               onClick={handleWithdrawVault}
             >
               {withdrawLoading ? 'Đang rút tiền...' : 'Rút tiền'}
@@ -514,11 +527,12 @@ export default function AdminTab() {
               onChange={e => setNewFeeReceiver(e.target.value)}
               disabled={feeReceiverLoading}
             />
+            {feeReceiverError && <div className="admin-field-error">{feeReceiverError}</div>}
           </div>
           <div className="admin-form-actions">
             <button
               className="btn btn-primary"
-              disabled={!/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver) || feeReceiverLoading}
+              disabled={!/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver) || feeReceiverLoading || !!feeReceiverError}
               onClick={handleSetFeeReceiver}
             >
               {feeReceiverLoading ? 'Đang cập nhật...' : 'Cập nhật'}
@@ -543,10 +557,12 @@ export default function AdminTab() {
           <div className="admin-form-field">
             <label className="admin-form-label">Kỳ hạn (ngày)</label>
             <input className="input" type="number" placeholder="180" value={tenorDays} onChange={e => setTenorDays(e.target.value)} disabled={createLoading} />
+            {tenorError && <div className="admin-field-error">{tenorError}</div>}
           </div>
           <div className="admin-form-field">
             <label className="admin-form-label">APR (bps)</label>
             <input className="input" type="number" placeholder="400" value={aprBps} onChange={e => setAprBps(e.target.value)} disabled={createLoading} />
+            {aprError && <div className="admin-field-error">{aprError}</div>}
           </div>
           <div className="admin-form-field">
             <label className="admin-form-label">Phạt (bps)</label>
@@ -562,10 +578,11 @@ export default function AdminTab() {
           <div className="admin-form-field">
             <label className="admin-form-label">Tối đa (USDC)</label>
             <input className="input" type="number" placeholder="50000" value={maxDeposit} onChange={e => setMaxDeposit(e.target.value)} disabled={createLoading} />
+            {minMaxError && <div className="admin-field-error">{minMaxError}</div>}
             <div className="admin-form-hint">Để trống = không giới hạn</div>
           </div>
           <div className="admin-form-field admin-form-field-btn">
-            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading || !tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit || !!penaltyError} style={{ width: '100%', marginTop: 22 }}>
+            <button className="btn btn-primary" onClick={handleCreatePlan} disabled={createLoading || !tenorDays || !aprBps || !penaltyBps || !minDeposit || !maxDeposit || !!tenorError || !!aprError || !!penaltyError || !!minMaxError} style={{ width: '100%', marginTop: 22 }}>
               {createLoading ? 'Đang tạo...' : 'Tạo kế hoạch'}
             </button>
           </div>
