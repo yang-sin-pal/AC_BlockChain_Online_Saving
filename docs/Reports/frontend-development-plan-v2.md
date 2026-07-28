@@ -34,7 +34,7 @@ Xây dựng giao diện React kết nối MetaMask, cho phép người dùng:
 - Quản trị (nạp quỹ, tạo kế hoạch, tạm dừng hệ thống)
 
 **Ngôn ngữ giao diện:** Tiếng Việt
-**Màu sắc:** Xanh dương đậm (#1E40AF) làm chủ đạo — phong cách ngân hàng số hiện đại
+**Màu sắc:** Vàng đồng (#D4A017) làm chủ đạo — phong cách ấm áp, hiện đại
 
 ---
 
@@ -198,18 +198,21 @@ cd frontend && npm run dev
 
 | Vai trò | Màu | Hex | Sử dụng |
 |---------|-----|-----|---------|
-| Chính (Primary) | Xanh dương đậm | `#1E40AF` | Header, sidebar, nút chính |
-| Chính nhạt | Xanh dương | `#3B82F6` | Hover, tab đang chọn |
-| Phụ (Secondary) | Xanh lá | `#059669` | Thành công, số dư, lãi suất |
-| Nổi bật (Accent) | Vàng đồng | `#F59E0B` | Highlight, badge, lãi suất nổi bật |
-| Nền | Trắng sạch | `#F8FAFC` | Body background |
+| Chính (Primary) | Vàng đậm | `#D4A017` | Header, sidebar, nút chính |
+| Chính nhạt | Vàng sáng | `#F5C242` | Hover, tab đang chọn, badge |
+| Phụ (Secondary) | Xanh lá | `#16A34A` | Thành công, số dư, lãi suất |
+| Nổi bật (Accent) | Vàng progress | `#E3B128` | Highlight, progress bar, lãi suất nổi bật |
+| Nền | Trắng ấm | `#F9F9F7` | Body background |
 | Card | Trắng | `#FFFFFF` | Card, input fields |
-| Text chính | Đen xám | `#1E293B` | Tiêu đề, nội dung |
-| Text phụ | Xám | `#64748B` | Mô tả, labels |
+| Text chính | Đen xám | `#1F1F1F` | Tiêu đề, nội dung |
+| Text phụ | Xám | `#6B7280` | Mô tả, labels |
+| Text muted | Xám nhạt | `#9CA3AF` | Placeholder, muted text |
 | Nguy hiểm | Đỏ | `#DC2626` | Lỗi, rút trước hạn, cảnh báo |
-| Viền | Xám nhạt | `#E2E8F0` | Viền cards, inputs |
+| Viền | Xám ấm | `#ECE8E1` | Viền cards, inputs |
+| Vàng text | Vàng sẫm | `#8A6A00` | Text trên nền vàng |
+| Success bg | Xanh lá nhạt | `#E8F7EC` | Nền thông báo thành công |
 
-**Header gradient:** `linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%)`
+**Header:** Solid `#1F1F1F` — warm neutral, không dùng gradient
 
 ### 4.2 Typography
 
@@ -466,7 +469,7 @@ Admin
 | Trạng thái | Badge | Màu | Ý nghĩa |
 |------------|-------|-----|---------|
 | Active | 🟢 Đang hoạt động | Xanh lá | Đang chờ đáo hạn |
-| PrincipalClaimed | 🔵 Đã rút gốc | Xanh dương | C1: đã nhận gốc, chờ nhận lãi. Nếu `pendingInterest > 0` hiển thị sub-label: "còn X USDC lãi chờ nhận" |
+| PrincipalClaimed | 🔵 Đã rút gốc | Vàng `#D4A017` | C1: đã nhận gốc, chờ nhận lãi. Nếu `pendingInterest > 0` hiển thị sub-label: "còn X USDC lãi chờ nhận" |
 | Withdrawn | ⚫ Đã đóng | Xám đậm | Hoàn tất rút tiền |
 | ManualRenewed | 🟣 Đã gia hạn thủ công | Tím | Đã gia hạn bởi người dùng |
 | AutoRenewed | 🟠 Đã tự gia hạn | Cam | Đã tự động gia hạn |
@@ -686,7 +689,7 @@ function checkFundHealth(
 ```ts
 NETWORKS = {
   31337: { name: "Localhost", color: "green" },
-  11155111: { name: "Sepolia", color: "blue" },
+  11155111: { name: "Sepolia", color: "gold" },
 }
 getNetworkName(chainId): string
 isSupportedNetwork(chainId): boolean
