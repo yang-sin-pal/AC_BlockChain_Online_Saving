@@ -8,13 +8,13 @@
 |------|--------|
 | 1. Deployment infrastructure | Done |
 | 2. Frontend scaffold | Done |
-| 3. Core utilities | Pending |
-| 4. Layout + header | Pending |
-| 5. PlansTab | Pending |
-| 6. DepositsTab | Pending |
-| 7. AdminTab | Pending |
-| 8. Polish + demo | Pending |
-| 9. Report writing | Pending |
+| 3. Core utilities | Done |
+| 4. Layout + header | Done |
+| 5. PlansTab | Done |
+| 6. DepositsTab | Done |
+| 7. AdminTab (incl. 7f Audit log) | Done |
+| 8. Polish + demo | Done |
+| 9. Report writing | Done |
 
 ## Commands
 
