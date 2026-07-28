@@ -549,77 +549,99 @@ function DepositCard({
   const statusInfo = STATUS_LABELS[d.status] ?? { label: 'Không xác định', badgeClass: 'badge-neutral', emoji: '⚪' }
   const actionKey = `${d.id.toString()}`
   const isLoading = (action: string) => loadingAction === `${actionKey}-${action}`
+  const planLabel = plan ? `${plan.tenorDays} ngày` : '—'
 
   const now = Math.floor(Date.now() / 1000)
   const matured = now >= Number(d.maturityAt)
-  const maturityLabel = matured ? 'đã đáo hạn' : `đáo hạn: ${timeUntil(Number(d.maturityAt))}`
+  const totalDuration = Number(d.maturityAt - d.startAt)
+  const elapsed = Math.min(Math.max(now - Number(d.startAt), 0), totalDuration)
+  const progressPct = totalDuration > 0 ? Math.round((elapsed / totalDuration) * 100) : 0
 
   return (
-    <div className="deposit-card card">
-      <div className="deposit-card__header">
-        <span className="deposit-card__id">#{d.id.toString()}</span>
-        <span className={`badge ${statusInfo.badgeClass}`}>
-          {statusInfo.emoji} {statusInfo.label}
-        </span>
-      </div>
+    <div className="deposit-card">
+      <div className="deposit-card__top-row">
+        {/* NFT thumbnail */}
+        <div className="deposit-card__nft-thumb">
+          <div className="deposit-card__nft-seal" />
+          <div className="deposit-card__nft-medallion">VN</div>
+          <div className="deposit-card__nft-token">TOKEN #{d.id.toString()}</div>
+          <div className="deposit-card__nft-plan">{planLabel}</div>
+          <div className="deposit-card__nft-apr">{formatBps(d.aprBpsAtOpen)}</div>
+        </div>
 
-      <div className="deposit-card__body">
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">Số tiền</span>
-          <span className="deposit-card__value">{formatUSDC(d.principal)} USDC</span>
-        </div>
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">Gói</span>
-          <span className="deposit-card__value">{plan ? `${plan.tenorDays} ngày` : '—'}</span>
-        </div>
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">APR</span>
-          <span className="deposit-card__value deposit-card__apr">{formatBps(d.aprBpsAtOpen)}</span>
-        </div>
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">Ngày đáo hạn</span>
-          <span className="deposit-card__value">{formatDate(Number(d.maturityAt))}</span>
-        </div>
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">Ân hạn</span>
-          <span className="deposit-card__value">{GRACE_PERIOD_DAYS} ngày</span>
-        </div>
-        <div className="deposit-card__row">
-          <span className="deposit-card__label">Trạng thái</span>
-          <span className={`deposit-card__value${matured ? '' : ' deposit-card__countdown'}`}>
-            {maturityLabel}
-          </span>
-        </div>
-        {expectedInterest !== null && (
-          <div className="deposit-card__row">
-            <span className="deposit-card__label">Lãi dự kiến</span>
-            <span className="deposit-card__value deposit-card__interest">{formatUSDC(expectedInterest)} USDC</span>
+        {/* Center content */}
+        <div className="deposit-card__content">
+          <div className="deposit-card__status-row">
+            <span className="deposit-card__id">#{d.id.toString()}</span>
+            <span className={`badge ${statusInfo.badgeClass}`}>
+              {statusInfo.emoji} {statusInfo.label}
+            </span>
           </div>
-        )}
-        {d.interestClaimed && d.status === 0 && (
-          <div className="deposit-card__interest-claimed">✅ Đã nhận lãi</div>
-        )}
-        {pendingInterest !== null && pendingInterest > 0n && d.status === 2 && (
-          <div className="deposit-card__pending-label">
-            Còn {formatUSDC(pendingInterest)} USDC lãi chờ nhận
-          </div>
-        )}
-      </div>
 
-      <div className="deposit-card__footer">
-        {buttons.map(btn => {
-          const blocked = btn.blockedByPause && paused
-          return (
-            <button
-              key={btn.key}
-              className={`btn ${btn.style}`}
-              disabled={blocked || isLoading(btn.key)}
-              onClick={() => onAction(d.id, btn.key)}
-            >
-              {isLoading(btn.key) ? 'Đang xử lý...' : btn.label}
-            </button>
-          )
-        })}
+          <div className="deposit-card__principal">
+            {formatUSDC(d.principal)} <span className="deposit-card__principal-unit">USDC</span>
+          </div>
+
+          <div className="deposit-card__meta-row">
+            <span>Gói {planLabel}</span>
+            <span className="deposit-card__apr-value">APR {formatBps(d.aprBpsAtOpen)}</span>
+            <span>Đáo hạn: {formatDate(Number(d.maturityAt))}</span>
+            {d.status === 0 && !matured && (
+              <span className="deposit-card__countdown">{timeUntil(Number(d.maturityAt))}</span>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="deposit-card__progress">
+            <div className="deposit-card__progress-labels">
+              <span>Bắt đầu {formatDate(Number(d.startAt))}</span>
+              <span>Đáo hạn {formatDate(Number(d.maturityAt))}</span>
+              {d.status === 0 && <span className="deposit-card__grace-label">+{GRACE_PERIOD_DAYS} ngày ân hạn</span>}
+            </div>
+            <div className="deposit-card__progress-track">
+              <div
+                className={`deposit-card__progress-fill${progressPct >= 100 ? ' is-mature' : ''}`}
+                style={{ width: `${Math.min(progressPct, 100)}%` }}
+              />
+              {/* Maturity marker */}
+              <div className="deposit-card__progress-marker" />
+              {/* Grace band */}
+              {d.status === 0 && <div className="deposit-card__progress-grace" />}
+            </div>
+          </div>
+
+          {/* Interest info */}
+          {expectedInterest !== null && (
+            <div className="deposit-card__interest-row">
+              Lãi dự kiến: <span className="deposit-card__interest-value">{formatUSDC(expectedInterest)} USDC</span>
+            </div>
+          )}
+          {d.interestClaimed && d.status === 0 && (
+            <div className="deposit-card__interest-claimed">✅ Đã nhận lãi</div>
+          )}
+          {pendingInterest !== null && pendingInterest > 0n && d.status === 2 && (
+            <div className="deposit-card__pending-label">
+              Còn {formatUSDC(pendingInterest)} USDC lãi chờ nhận
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons column */}
+        <div className="deposit-card__actions">
+          {buttons.map(btn => {
+            const blocked = btn.blockedByPause && paused
+            return (
+              <button
+                key={btn.key}
+                className={`btn ${btn.style}`}
+                disabled={blocked || isLoading(btn.key)}
+                onClick={() => onAction(d.id, btn.key)}
+              >
+                {isLoading(btn.key) ? 'Đang xử lý...' : btn.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

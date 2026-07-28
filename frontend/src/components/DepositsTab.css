@@ -55,7 +55,11 @@
 }
 
 .deposit-card {
-  padding: 20px 24px;
+  background: var(--color-card);
+  border: 1.5px solid var(--color-border);
+  border-radius: 22px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
 .deposit-card-skeleton {
@@ -63,11 +67,83 @@
   pointer-events: none;
 }
 
-.deposit-card__header {
+.deposit-card__top-row {
   display: flex;
-  justify-content: space-between;
+  gap: 20px;
+}
+
+/* NFT Thumbnail */
+.deposit-card__nft-thumb {
+  width: 88px;
+  height: 110px;
+  flex-shrink: 0;
+  background: linear-gradient(145deg, #FDF8ED 0%, #FBF0D0 100%);
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 14px;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  position: relative;
+}
+
+.deposit-card__nft-seal {
+  position: absolute;
+  inset: 4px;
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 50%, transparent);
+  border-radius: 7px;
+  pointer-events: none;
+}
+
+.deposit-card__nft-medallion {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-gold-text));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.deposit-card__nft-token {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-gold-text);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.deposit-card__nft-plan {
+  font-size: 8px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.deposit-card__nft-apr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* Center content */
+.deposit-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.deposit-card__status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
 }
 
 .deposit-card__id {
@@ -77,41 +153,120 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-.deposit-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.deposit-card__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-}
-
-.deposit-card__label {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.deposit-card__value {
-  color: var(--color-text);
-  font-weight: 600;
+.deposit-card__principal {
   font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.deposit-card__principal-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.deposit-card__meta-row {
+  display: flex;
+  gap: 16px;
   font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.deposit-card__apr {
+.deposit-card__apr-value {
+  font-family: 'JetBrains Mono', monospace;
   color: var(--color-gold-text);
-}
-
-.deposit-card__interest {
-  color: var(--color-success);
+  font-weight: 600;
 }
 
 .deposit-card__countdown {
-  color: var(--color-gold-text);
+  color: #2563EB;
+}
+
+/* Progress bar */
+.deposit-card__progress {
+  margin-bottom: 6px;
+}
+
+.deposit-card__progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.deposit-card__grace-label {
+  color: var(--color-text-secondary);
+}
+
+.deposit-card__progress-track {
+  position: relative;
+  height: 6px;
+  background: #F3F4F6;
+  border-radius: 3px;
+  overflow: visible;
+}
+
+.deposit-card__progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #E3B128, var(--color-primary));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.deposit-card__progress-fill.is-mature {
+  background: var(--color-success);
+}
+
+.deposit-card__progress-marker {
+  position: absolute;
+  top: -3px;
+  left: 100%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: 1px;
+}
+
+.deposit-card__progress-grace {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 18px;
+  height: 6px;
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: 0 3px 3px 0;
+}
+
+/* Interest rows */
+.deposit-card__interest-row {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.deposit-card__interest-value {
+  color: var(--color-success);
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.deposit-card__interest-claimed {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-success);
+  background: #F0FDF4;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin-top: 4px;
+  display: inline-block;
 }
 
 .deposit-card__pending-label {
@@ -122,13 +277,25 @@
   padding: 6px 10px;
   border-radius: 8px;
   margin-top: 4px;
+  display: inline-block;
 }
 
-.deposit-card__footer {
+/* Action buttons column */
+.deposit-card__actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  margin-top: 16px;
-  flex-wrap: wrap;
+  justify-content: center;
+  min-width: 150px;
+}
+
+.deposit-card__actions .btn {
+  height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 9px;
+  white-space: nowrap;
+  padding: 0 16px;
 }
 
 .modal-overlay {
@@ -291,12 +458,40 @@
     padding: 20px 18px;
   }
 
-  .deposit-card__footer {
+  .deposit-card {
+    padding: 16px 18px;
+  }
+
+  .deposit-card__top-row {
     flex-direction: column;
   }
 
-  .deposit-card__footer .btn {
-    width: 100%;
+  .deposit-card__nft-thumb {
+    display: none;
+  }
+
+  .deposit-card__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-width: unset;
+    margin-top: 12px;
+  }
+
+  .deposit-card__actions .btn {
+    flex: 1;
+    min-width: 0;
+    height: 34px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+
+  .deposit-card__principal {
+    font-size: 20px;
+  }
+
+  .deposit-card__meta-row {
+    gap: 10px;
+    font-size: 11px;
   }
 
   .history-table {
