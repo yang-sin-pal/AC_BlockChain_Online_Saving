@@ -140,8 +140,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint32 tenorDays
     ) internal returns (uint256) {
         Plan storage plan = plans[planId];
-        if (plan.minDeposit != 0 && principal < plan.minDeposit) revert SavingCore_DepositBelowMin();
-        if (plan.maxDeposit != 0 && principal > plan.maxDeposit) revert SavingCore_DepositAboveMax();
+        if (principal < plan.minDeposit) revert SavingCore_DepositBelowMin();
+        if (principal > plan.maxDeposit) revert SavingCore_DepositAboveMax();
 
         uint256 depositId = nextDepositId++;
         uint64 start_ = uint64(block.timestamp);
