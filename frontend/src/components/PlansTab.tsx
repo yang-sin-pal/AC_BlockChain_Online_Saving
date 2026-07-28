@@ -161,17 +161,7 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
   }
 
   if (fetching) {
-    return (
-      <div className="plans-grid">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="plan-card plan-card-skeleton">
-            <div className="skeleton-line" style={{ width: '60%', height: 18 }} />
-            <div className="skeleton-line" style={{ width: '40%', height: 14, marginTop: 8 }} />
-            <div className="skeleton-line" style={{ width: '80%', height: 14, marginTop: 8 }} />
-          </div>
-        ))}
-      </div>
-    )
+    return <div className="empty-state"><p>Đang tải kế hoạch tiết kiệm...</p></div>
   }
 
   if (plans.length === 0) {
@@ -181,148 +171,120 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
   const currentAllowance = (allowance >= derived.amountNum) && derived.isValid
 
   return (
-    <div>
-      <div className="plans-grid">
-        {plans.map(plan => {
-          const isSelected = selectedPlanId === plan.id
-          const isDefault = plan.tenorDays === 180
-          return (
-            <button
-              key={plan.id}
-              className={`plan-card${isSelected ? ' selected' : ''}`}
-              onClick={() => setSelectedPlanId(plan.id)}
-            >
-              {isDefault && <span className="plan-card__badge">Mặc định</span>}
-              <div className="plan-card__tenor">{plan.tenorDays} ngày</div>
-              <div className="plan-card__meta">
-                <span className="plan-card__apr">APR {formatBps(plan.aprBps)}</span>
-                <span className="plan-card__penalty">Phạt {formatBps(plan.penaltyBps)}</span>
-              </div>
-              <div className="plan-card__limits">
-                {formatLimit(plan.minDeposit)} – {formatLimit(plan.maxDeposit)}
-              </div>
-              <div className="plan-card__grace">
-                Kỳ hạn: {plan.tenorDays} ngày — includes {GRACE_PERIOD_DAYS} ngày ân hạn
-              </div>
-            </button>
-          )
-        })}
+    <div className="deposit-form card">
+      <h2 className="deposit-form__title">MỞ TÀI KHOẢN TIẾT KIỆM</h2>
+
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label className="form-label">GÓI TIẾT KIỆM</label>
+        <select
+          className="input deposit-form__select"
+          value={selectedPlanId ?? ''}
+          onChange={e => setSelectedPlanId(Number(e.target.value))}
+        >
+          {plans.map(plan => (
+            <option key={plan.id} value={plan.id}>
+              {plan.tenorDays} ngày — {formatBps(plan.aprBps)} APR
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="deposit-form card">
-        <h2 className="deposit-form__title">MỞ TÀI KHOẢN TIẾT KIỆM</h2>
-
-        <div className="deposit-form__cols">
-          <div className="deposit-form__left">
-            <div className="form-group">
-              <label className="form-label">GÓI TIẾT KIỆM</label>
-              <select
-                className="input deposit-form__select"
-                value={selectedPlanId ?? ''}
-                onChange={e => setSelectedPlanId(Number(e.target.value))}
-              >
-                {plans.map(plan => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.tenorDays} ngày — {formatBps(plan.aprBps)} APR
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedPlan && (
-              <div className="form-group">
-                <label className="form-label">SỐ TIỀN GỬI (USDC)</label>
-                <input
-                  className={`input deposit-form__input${derived.amountNum > 0n ? (derived.isValid ? ' input-success' : ' input-error') : ''}`}
-                  type="number"
-                  placeholder="0"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  disabled={depositLoading}
-                />
-                <div className="deposit-form__hints">
-                  <span className={`validation-hint${derived.tooLow || derived.tooHigh ? ' error' : ''}`}>
-                    {derived.tooLow
-                      ? `Tối thiểu: ${formatLimit(selectedPlan.minDeposit)}`
-                      : derived.tooHigh
-                        ? `Tối đa: ${formatLimit(selectedPlan.maxDeposit)}`
-                        : `Tối thiểu: ${formatLimit(selectedPlan.minDeposit)} — Tối đa: ${formatLimit(selectedPlan.maxDeposit)}`}
-                  </span>
-                  <span className="validation-hint">
-                    Số dư: {formatUSDC(usdcBalance)} USDC
-                  </span>
-                </div>
-                {derived.exceedsBalance && (
-                  <div className="validation-hint error">Số dư không đủ</div>
-                )}
-                {estimatedInterest !== null && derived.isValid && (
-                  <div className="deposit-form__interest">
-                    Lãi ước tính: <strong>{formatUSDC(estimatedInterest)} USDC</strong>
-                  </div>
-                )}
-              </div>
+      {selectedPlan && (
+        <div className="plan-highlight">
+          <div className="plan-highlight__header">
+            <span className="plan-highlight__tenor">{selectedPlan.tenorDays} ngày</span>
+            {selectedPlan.tenorDays === 180 && (
+              <span className="plan-highlight__badge">Mặc định</span>
             )}
           </div>
-
-          <div className="deposit-form__right">
-            {selectedPlan && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">THÔNG TIN GÓI</label>
-                  <div className="deposit-form__info">
-                    <div className="deposit-form__info-row">
-                      <span>Kỳ hạn</span>
-                      <span className="font-mono">{selectedPlan.tenorDays} ngày</span>
-                    </div>
-                    <div className="deposit-form__info-row">
-                      <span>APR</span>
-                      <span className="font-mono" style={{ color: 'var(--color-gold-text)' }}>{formatBps(selectedPlan.aprBps)}</span>
-                    </div>
-                    <div className="deposit-form__info-row">
-                      <span>Phạt rút trước hạn</span>
-                      <span className="font-mono" style={{ color: 'var(--color-danger)' }}>{formatBps(selectedPlan.penaltyBps)}</span>
-                    </div>
-                    <div className="deposit-form__info-row">
-                      <span>Ân hạn</span>
-                      <span className="font-mono">{GRACE_PERIOD_DAYS} ngày</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  className="btn btn-primary"
-                  style={{ width: '100%' }}
-                  disabled={!derived.isValid || currentAllowance || approveLoading || depositLoading}
-                  onClick={handleApprove}
-                >
-                  {approveLoading
-                    ? 'Đang phê duyệt...'
-                    : currentAllowance
-                      ? 'Đã phê duyệt ✅'
-                      : 'Phê duyệt USDC'}
-                </button>
-
-                <button
-                  className="btn btn-success"
-                  style={{ width: '100%', marginTop: 10 }}
-                  disabled={!currentAllowance || depositLoading}
-                  onClick={handleOpenDeposit}
-                >
-                  {depositLoading
-                    ? 'Đang mở tài khoản...'
-                    : 'Mở tài khoản tiết kiệm'}
-                </button>
-              </>
-            )}
-
-            {error && (
-              <div className="toast toast-error" style={{ marginTop: 12 }}>
-                <span>❌</span> {error}
-              </div>
-            )}
+          <div className="plan-highlight__grid">
+            <div className="plan-highlight__item">
+              <span className="plan-highlight__item-label">APR</span>
+              <span className="plan-highlight__item-value" style={{ color: 'var(--color-gold-text)' }}>{formatBps(selectedPlan.aprBps)}</span>
+            </div>
+            <div className="plan-highlight__item">
+              <span className="plan-highlight__item-label">Phạt rút trước hạn</span>
+              <span className="plan-highlight__item-value" style={{ color: 'var(--color-danger)' }}>{formatBps(selectedPlan.penaltyBps)}</span>
+            </div>
+            <div className="plan-highlight__item">
+              <span className="plan-highlight__item-label">Hạn mức</span>
+              <span className="plan-highlight__item-value">
+                {selectedPlan.minDeposit === 0n ? 'Không giới hạn' : formatUSDC(selectedPlan.minDeposit)}{selectedPlan.maxDeposit !== 0n ? ` – ${formatUSDC(selectedPlan.maxDeposit)}` : ''} USDC
+              </span>
+            </div>
+            <div className="plan-highlight__item">
+              <span className="plan-highlight__item-label">Ân hạn</span>
+              <span className="plan-highlight__item-value">{GRACE_PERIOD_DAYS} ngày</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {selectedPlan && (
+        <>
+          <div className="form-group" style={{ marginTop: 20 }}>
+            <label className="form-label">SỐ TIỀN GỬI (USDC)</label>
+            <input
+              className={`input deposit-form__input${derived.amountNum > 0n ? (derived.isValid ? ' input-success' : ' input-error') : ''}`}
+              type="number"
+              placeholder="0"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              disabled={depositLoading}
+            />
+            <div className="deposit-form__hints">
+              <span className={`validation-hint${derived.tooLow || derived.tooHigh ? ' error' : ''}`}>
+                {derived.tooLow
+                  ? `Tối thiểu: ${formatLimit(selectedPlan.minDeposit)}`
+                  : derived.tooHigh
+                    ? `Tối đa: ${formatLimit(selectedPlan.maxDeposit)}`
+                    : `Tối thiểu: ${formatLimit(selectedPlan.minDeposit)} — Tối đa: ${formatLimit(selectedPlan.maxDeposit)}`}
+              </span>
+              <span className="validation-hint">
+                Số dư: {formatUSDC(usdcBalance)} USDC
+              </span>
+            </div>
+            {derived.exceedsBalance && (
+              <div className="validation-hint error">Số dư không đủ</div>
+            )}
+            {estimatedInterest !== null && derived.isValid && (
+              <div className="deposit-form__interest">
+                Lãi ước tính: <strong>{formatUSDC(estimatedInterest)} USDC</strong>
+              </div>
+            )}
+          </div>
+
+          <div className="deposit-form__actions">
+            <button
+              className="btn btn-primary"
+              disabled={!derived.isValid || currentAllowance || approveLoading || depositLoading}
+              onClick={handleApprove}
+            >
+              {approveLoading
+                ? 'Đang phê duyệt...'
+                : currentAllowance
+                  ? 'Đã phê duyệt ✅'
+                  : 'Phê duyệt USDC'}
+            </button>
+
+            <button
+              className="btn btn-success"
+              disabled={!currentAllowance || depositLoading}
+              onClick={handleOpenDeposit}
+            >
+              {depositLoading
+                ? 'Đang mở tài khoản...'
+                : 'Mở tài khoản tiết kiệm'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {error && (
+        <div className="toast toast-error" style={{ marginTop: 12 }}>
+          <span>❌</span> {error}
+        </div>
+      )}
     </div>
   )
 }
