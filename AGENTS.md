@@ -5,7 +5,7 @@
 ```bash
 npm install              # Install dependencies
 npx hardhat compile      # Compile contracts (Solidity 0.8.28, cancun EVM)
-npx hardhat test         # Run all tests (153 passing)
+npx hardhat test         # Run all tests (160 passing)
 npx hardhat coverage     # Run coverage report
 ```
 
@@ -23,14 +23,14 @@ A function is **not done** until: required test cases exist, every revert branch
 
 ## Project Status
 
-**Days 1–5 + C1 complete** — 153 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
+**Days 1–5 + C1 complete** — 160 tests passing. See `PLAN.md` for day-by-day progress. Deadline: 29/7/2026.
 
 | Component | Status |
 |-----------|--------|
 | All `.sol` contracts | Complete — no stubs remain |
 | `test/unit/SavingCore/` | Complete — 4 files, 41 unit tests |
 | `test/unit/VaultManager/` | Complete — 8 files, 24 unit tests |
-| `test/integration/` | Complete — 7 files, 88 cross-contract tests |
+| `test/integration/` | Complete — 8 files, 95 cross-contract tests |
 | `test/helpers/` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
 | `scripts/*.ts` | Stub comments only |
 
@@ -105,7 +105,7 @@ Full conventions: `docs/project/code-convention.md`
   - `VaultManager.setSavingCore.test.ts` (2 tests)
   - `VaultManager.views.test.ts` (2 tests)
   - `VaultManager.reentrancy.test.ts` (1 test)
-- **`test/integration/`** — 7 files:
+- **`test/integration/`** — 8 files:
   - `PauseInteraction.test.ts` (9 tests) — cross-contract pause scenarios
   - `SavingCore.withdrawAtMaturity.test.ts` (14 tests) — vault payment, vault insufficiency
   - `SavingCore.autoRenew.test.ts` (14 tests) — auto-renew with vault-funded interest
@@ -113,6 +113,7 @@ Full conventions: `docs/project/code-convention.md`
   - `SavingCore.c1.test.ts` (18 tests) — C1: claimPrincipal, claimInterest, partial vault payment
   - `SavingCore.interestClaim.test.ts` (15 tests) — claimInterest Path A/B, partial vault payment
   - `SavingCore.reentrancy.test.ts` (4 tests) — reentrancy across SavingCore↔VaultManager
+  - `SavingCore.coverage.test.ts` (7 tests) — branch coverage gap fixes
 - **`test/helpers/`** — Shared fixtures and utilities. **Import from here, not inline.**
   - `fixtures.ts`: `deployAllContractsFixture` (full setup), `fixtureWithPlan` (with default plan), `deployVaultManager` (minimal, no vault funding)
   - `utils.ts`: `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`

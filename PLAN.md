@@ -1,6 +1,6 @@
 ﻿# PLAN.md — Blockchain: Online Banking System (Term Deposit)
 
-> Deadline demo: **Wednesday, 29/7/2026**. Priority: solid core (90 points) + frontend (10 points) first. Bonus C1+C2 only after core is stable. Score capped at 100.
+> Deadline demo: **Wednesday, 29/7/2026** (tomorrow). Priority: solid core (90 points) + frontend (10 points) first. Bonus C1 done (+5), C2 pending (+5). Score capped at 100.
 
 ## Methodology: Test-Driven Development (TDD)
 
@@ -13,15 +13,15 @@
 > Per `docs/project/test-standard.md`: Coverage >90% is necessary but not sufficient. Every `if`/`require`/custom-error branch must have a dedicated test that specifically triggers it — not just a happy path that happens to execute the line.
 
 **Non-negotiable rule:** A function is NOT done until all of these are checked:
-- [ ] Required test cases from `docs/project/assignment.md` §7.2 exist and pass
-- [ ] Boundary cases from `docs/project/test-standard.md` §2 exist and pass
-- [ ] Every revert branch has a test that specifically triggers it
-- [ ] `npx hardhat coverage` shows the function above 90%
-- [ ] No test depends on execution order (each test sets up its own fixture)
+- [x] Required test cases from `docs/project/assignment.md` §7.2 exist and pass
+- [x] Boundary cases from `docs/project/test-standard.md` §2 exist and pass
+- [x] Every revert branch has a test that specifically triggers it
+- [x] `npx hardhat coverage` shows the function above 90%
+- [x] No test depends on execution order (each test sets up its own fixture)
 
 ---
 
-## Progress (updated: 24/7/2026)
+## Progress (updated: 28/7/2026)
 
 | Day | Status | Notes |
 |-----|--------|-------|
@@ -30,8 +30,23 @@
 | Day 3 (22/7) | **100% done** | VaultManager (19/19) + openDeposit (10/10) complete. |
 | Day 4 (23/7) | **100% done** | withdrawAtMaturity (12/12) + earlyWithdraw (9/9) + InterestLib. 51 tests total. Q4+Q5 drafted. |
 | Day 5 (24/7) | **100% done** | autoRenewDeposit (9/9) + renewDeposit (10/10) + admin branch tests (8). 78 tests total. Q3+Q6 drafted. |
+| Day 6 (25/7) | **100% done** | Buffer day — non-owner revert tests, reentrancy mock + tests, Design Q1/Q2/Q7. 88 tests total. |
+| Day 7 (26/7) | **100% done** | Coverage > 90% verified. C1 implemented: claimPrincipal, claimInterest, burn, dual-pause, onlyDepositOwner modifier. C1 tests. 153 tests. |
+| Day 8 (27/7) | **100% done** | Coverage gap fixes — 7 new tests in SavingCore.coverage.test.ts. 160 tests. SC 93.06%, VM 96.67%. |
+| Day 9 (28/7) | **In progress** | Coverage verification + diagrams rewrite + README fix + AGENTS.md rewrite. **C2 next.** |
 
-**Schedule:** Today is 24/7 (Day 5). Days 1-5 complete — 78 tests passing.
+**Schedule:** Today is 28/7 (Day 9). Days 1–8 complete + coverage verified — 160 tests passing.
+
+### Test Count History
+
+| Milestone | Tests | Files |
+|-----------|-------|-------|
+| Day 3 end | 30 | 2 test files |
+| Day 4 end | 51 | 4 test files |
+| Day 5 end | 78 | 6 test files |
+| Day 6 end | 88 | 8 test files |
+| Day 7 end (C1) | 153 | 15 test files |
+| Day 8 end (coverage) | **160** | **16 test files** |
 
 ---
 
@@ -187,82 +202,90 @@
 
 ---
 
-## Day 6 — Saturday, 25/7 — Buffer / Catch-up
+## Day 6 — Saturday, 25/7 — Buffer / Catch-up ✅ COMPLETE
 
 > This day has NO new features. It exists to absorb delays.
 
-- [ ] Finish anything slipped from Days 3–5
-- [ ] Run `npx hardhat coverage` — identify branches below 90%
-- [ ] Fill coverage gaps: walk every `if`/`require` in each contract, ensure each has a dedicated test (test-standard.md §3)
-- [ ] **Write Design Q1 (NFT transferable) in README** — ref: assignment §8.2 Q1
-- [ ] **Write Design Q2 (empty vault) in README** — ref: assignment §8.2 Q2
-- [ ] Full `npx hardhat compile` + `npx hardhat test` — clean pass from zero
+- [x] Finish anything slipped from Days 3–5
+- [x] Run `npx hardhat coverage` — identify branches below 90%
+- [x] Fill coverage gaps: walk every `if`/`require` in each contract, ensure each has a dedicated test (test-standard.md §3)
+- [x] **Write Design Q1 (NFT transferable) in README** — ref: assignment §8.2 Q1
+- [x] **Write Design Q2 (empty vault) in README** — ref: assignment §8.2 Q2
+- [x] Full `npx hardhat compile` + `npx hardhat test` — clean pass from zero
 
 ---
 
-## Day 7 — Sunday, 26/7 — Coverage > 90% + Attack Thinking + Optional C2
+## Day 7 — Sunday, 26/7 — Coverage > 90% + C1 Implementation ✅ COMPLETE
 
-> Ref: assignment §7.2 — "Coverage must be above 90%", §8.2 Q7, §8.3 C2
+> Ref: assignment §7.2 — "Coverage must be above 90%", §8.2 Q7, §8.3 C1
 
-- [ ] Achieve `npx hardhat coverage` > 90% — each function individually checked
+- [x] Achieve `npx hardhat coverage` > 90% — each function individually checked
   > Ref: test-standard.md §5 — Definition of Done checklist per function
-- [ ] **Design Q7 (attack thinking):** pick reentrancy OR double-withdraw, show exact code line that stops it, write answer in README. Ref: assignment §8.2 Q7
-- [ ] Write reentrancy mock test if chosen — malicious contract attempts reentrant call, prove revert. Ref: test-standard.md §2
-- [ ] **C2 (solvency guard) — ONLY if coverage > 90% already:**
-  - [ ] RED: Write C2 tests per test-standard.md §6.2
-  - [ ] GREEN: Implement `totalInterestOwed`, block `withdrawVault` below owed
-  - [ ] Write `BONUS_NOTES.md`: problem / solution / trade-off for C2
-  > Ref: assignment §8.3 C2, test-standard.md §6
+- [x] **Design Q7 (attack thinking):** reentrancy chosen — `ReentrancyGuard` + `nonReentrant` on all external state-changing functions. Mock attacker contract as proof. Ref: assignment §8.2 Q7
+- [x] Write reentrancy mock test — `ReentrantAttacker.sol` attempts reentrant call on 5 functions, all revert. Ref: test-standard.md §2
+- [x] **C1 (Principal Protection) — implemented:**
+  - [x] `claimPrincipal(depositId)` — pays principal from SavingCore, stores interest as `pendingInterest`
+  - [x] `claimInterest(depositId)` — Path A (Active: vault pays) + Path B (PrincipalClaimed: pays from pending). Partial vault payment supported.
+  - [x] `burn(depositId)` — blocked if `pendingInterest > 0` via `_update` override
+  - [x] Dual-pause architecture: SavingCore pause blocks vault-dependent ops, NOT principal withdrawal
+  - [x] `onlyDepositOwner(depositId)` modifier — 6 functions
+  - [x] C1 tests: 18 integration tests covering all paths + edge cases
+  > Ref: assignment §8.3 C1, test-standard.md §6
 
 ---
 
-## Day 8 — Monday, 27/7 — Frontend (4 flows)
+## Day 8 — Monday, 27/7 — Coverage Gap Fixes ✅ COMPLETE
 
-> Ref: assignment §7.3 — "React frontend that connects to MetaMask"
+> SavingCore.sol dropped to 89.58% after test file moves. Fixed with targeted tests.
 
-- [ ] MetaMask connection, read MockUSDC balance
-- [ ] Plan list + open deposit form: validate min/max in UI, `approve()` then `openDeposit()` as separate transactions
-- [ ] User deposit list: status, countdown to `maturityAt`, disable withdraw button if not yet mature
-- [ ] Withdraw / Renew buttons + result notification (read from Withdrawn/Renewed events)
-- [ ] Test full flow in browser against local Hardhat node
-
----
-
-## Day 9 — Tuesday, 28/7 — README + Video + Final Polish
-
-> Ref: assignment §7.4 — Design Answers in README, §11 — submission requirements
-
-- [ ] README complete: Overview, Personal Variant values + computation, run/deploy instructions, all 7 Design Answers with file:line references
-  > Ref: assignment §8.1 — "Write your ID digits and computed values at the top of your README"
-  > Ref: assignment §7.4 — "3–6 sentences per question, matching your own code"
-- [ ] BONUS_NOTES.md complete (if C1/C2 implemented)
-- [ ] Record demo video (3–5 min): frontend walkthrough + 1–2 min code walkthrough (snapshot APR, reentrancy guard, solvency guard C2)
-  > Ref: assignment §11 — "A short demo video (3–5 minutes)"
-- [ ] Self-Q&A practice: all 7 design questions, with numbers changed ("what if penalty was 0 bps?")
-  > Ref: assignment §8.2 — "teacher will pick 2–3 questions at random and may change the numbers"
-- [ ] Final `npx hardhat compile` + `npx hardhat test` + `npx hardhat coverage`
+- [x] Run `npx hardhat coverage` — found SavingCore at 89.58% (below 90%)
+- [x] Analyzed 15 uncovered branches (4 OZ modifier false paths untestable, 11 testable)
+- [x] Added 7 coverage tests in `SavingCore.coverage.test.ts`:
+  - burn on Active deposit, burn by non-owner, claimPrincipal on Withdrawn/earlyWithdrawn
+  - claimInterest with vault=0, renewDeposit on Withdrawn, autoRenewDeposit on Withdrawn
+- [x] Final coverage: **SavingCore 93.06%, VaultManager 96.67%** — both above 90%
+- [x] 160 tests passing
 
 ---
 
-## Day 10 — Wednesday, 29/7 — DEMO
+## Day 9 — Tuesday, 28/7 — Diagrams + README + AGENTS.md ✅ COMPLETE
 
-- [ ] Morning: final push, verify repo structure matches assignment §11
+> Rewrote all design diagrams, verified README, updated AGENTS.md
+
+- [x] **Activity diagram rewrite** — 10 flows with correct modifiers, CEI order, pause checks
+- [x] **Activity diagram Mermaid fix** — `\n` → `<br/>`, quoted diamond nodes with operators (`>=`, `<=`, `<`, `!=`)
+- [x] **Sequence diagram rewrite** — 13 sequences including C1, burn, setSavingCore, pause/unpause
+- [x] **Use case diagram rewrite** — 26 use cases, corrected BR mappings
+- [x] **README.md verification** — found 9 outdated items, fixed all (line refs, test counts, file path, broken sentence)
+- [x] **AGENTS.md rewrite** — fully updated with current test counts, dual-pause architecture, onlyDepositOwner modifier
+- [x] **Test file move** — 6 integration tests moved from `test/unit/SavingCore/` to `test/integration/`, import paths fixed
+- [x] **`docs/audit/folder-structure.md` update** — tree diagram and descriptions updated
+- [x] **Phase 1 coverage verification** — 160 tests, SC 93.06%, VM 96.67%
+- [ ] **C2 (Solvency Guard) — next task**
+
+---
+
+## Day 10 — Wednesday, 29/7 — DEMO (tomorrow)
+
+- [ ] Morning: C2 Solvency Guard (if time permits)
+- [ ] Morning: final push — frontend demo + video recording
+- [ ] Verify repo structure matches assignment §11
 - [ ] Demo
 
 ---
 
 ## Scoring Reference (quick lookup)
 
-| Criterion | Points | Days | Assignment Ref |
-|-----------|--------|------|----------------|
-| Interest & penalty math | 20 | Day 4 | §3.2, §3.3, §6 rules §2+§3 |
-| APR/penalty snapshot immutable | 15 | Day 3–5 | §6 rule §1, §2.2 |
-| Auto-renew + APR lock + grace period | 15 | Day 5 | §3.5, §6 rule §4 |
-| Vault management & pause/unpause | 10 | Day 3 | §4 |
-| Test coverage > 90% | 15 | Day 6–7 | §7.2 |
-| Design questions + oral defense | 10 | Days 4–7, 9 | §8.2 (7 questions) |
-| Frontend demo | 10 | Day 8 | §7.3 |
-| Code quality & events | 5 | Throughout | §5, §10 |
-| Bonus C1 | +5 | Day 7 (if core done) | §8.3 C1 |
-| Bonus C2 | +5 | Day 7 (if core done) | §8.3 C2 |
-| **Total** | **100 + 10 bonus** | | §9 |
+| Criterion | Points | Status | Assignment Ref |
+|-----------|--------|--------|----------------|
+| Interest & penalty math | 20 | ✅ Done (Day 4) | §3.2, §3.3, §6 rules §2+§3 |
+| APR/penalty snapshot immutable | 15 | ✅ Done (Day 3–5) | §6 rule §1, §2.2 |
+| Auto-renew + APR lock + grace period | 15 | ✅ Done (Day 5) | §3.5, §6 rule §4 |
+| Vault management & pause/unpause | 10 | ✅ Done (Day 3) | §4 |
+| Test coverage > 90% | 15 | ✅ Done (Day 8) — SC 93.06%, VM 96.67% | §7.2 |
+| Design questions + oral defense | 10 | ✅ Done (Days 4–9) — all 7 questions | §8.2 (7 questions) |
+| Frontend demo | 10 | ⏳ Pending (Day 10) | §7.3 |
+| Code quality & events | 5 | ✅ Done (throughout) | §5, §10 |
+| Bonus C1 | +5 | ✅ Done (Day 7) | §8.3 C1 |
+| Bonus C2 | +5 | ⏳ Pending (Day 10) | §8.3 C2 |
+| **Total** | **100 + 10 bonus** | **90 secured + 15 pending** | §9 |
