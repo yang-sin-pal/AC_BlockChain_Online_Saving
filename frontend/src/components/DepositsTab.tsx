@@ -27,7 +27,6 @@ interface DepositsTabProps {
   onNavigateToPlans?: () => void
 }
 
-type FilterType = 'all' | 'active' | 'claimed' | 'closed'
 type ModalType = 'early' | 'renew' | 'burn' | null
 
 const STATUS_LABELS: Record<number, { label: string; badgeClass: string; emoji: string }> = {
@@ -38,12 +37,7 @@ const STATUS_LABELS: Record<number, { label: string; badgeClass: string; emoji: 
   4: { label: 'Đã tự gia hạn', badgeClass: 'badge-info', emoji: '🟠' },
 }
 
-const FILTERS: { key: FilterType; label: string }[] = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'active', label: 'Đang hoạt động' },
-  { key: 'claimed', label: 'Đã rút gốc' },
-  { key: 'closed', label: 'Đã đóng' },
-]
+const PAGE_SIZES = [10, 25, 50]
 
 export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   const { address, signer, isConnected } = useWallet()
@@ -57,7 +51,9 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [filter, setFilter] = useState<FilterType>('all')
+  const [subTab, setSubTab] = useState<'active' | 'history'>('active')
+  const [historyPage, setHistoryPage] = useState(0)
+  const [historyPageSize, setHistoryPageSize] = useState(15)
   const [paused, setPaused] = useState(false)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -141,18 +137,9 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
     initialLoadDone.current = true
   }, [fetchData, refreshTrigger])
 
-  const filteredDeposits = useMemo(() => {
-    switch (filter) {
-      case 'active':
-        return deposits.filter(d => d.status === 0)
-      case 'claimed':
-        return deposits.filter(d => d.status === 2)
-      case 'closed':
-        return deposits.filter(d => d.status === 1 || d.status === 3 || d.status === 4)
-      default:
-        return deposits
-    }
-  }, [deposits, filter])
+  const activeDeposits = useMemo(() => deposits.filter(d => d.status === 0 || d.status === 2), [deposits])
+  const historyDeposits = useMemo(() => deposits.filter(d => d.status === 1 || d.status === 3 || d.status === 4), [deposits])
+  const totalHistoryPages = useMemo(() => Math.max(1, Math.ceil(historyDeposits.length / historyPageSize)), [historyDeposits, historyPageSize])
 
   const isMatured = (maturityAt: bigint): boolean => {
     return Math.floor(Date.now() / 1000) >= Number(maturityAt)
@@ -182,7 +169,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
         const buttons: { key: string; label: string; style: 'btn-success' | 'btn-outline' | 'btn-danger'; blockedByPause: boolean }[] = [
           { key: 'withdraw', label: 'Rút khi đáo hạn', style: 'btn-success' as const, blockedByPause: true },
           { key: 'claimPrincipal', label: 'Nhận gốc', style: 'btn-success' as const, blockedByPause: false },
-          { key: 'claimInterest', label: 'Nhận lãi', style: 'btn-success' as const, blockedByPause: true },
+          ...(d.interestClaimed ? [] : [{ key: 'claimInterest' as const, label: 'Nhận lãi' as const, style: 'btn-success' as const, blockedByPause: true }]),
           { key: 'renew', label: 'Gia hạn', style: 'btn-outline' as const, blockedByPause: true },
         ]
         if (isPastGrace(d.maturityAt)) {
@@ -391,38 +378,120 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
         </div>
       )}
 
-      <div className="deposit-filters">
-        {FILTERS.map(f => (
-          <button
-            key={f.key}
-            className={`deposit-filter-btn${filter === f.key ? ' active' : ''}`}
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="deposit-tabs">
+        <button
+          className={`deposit-tab-btn${subTab === 'active' ? ' active' : ''}`}
+          onClick={() => setSubTab('active')}
+        >
+          Số dư hoạt động
+        </button>
+        <button
+          className={`deposit-tab-btn${subTab === 'history' ? ' active' : ''}`}
+          onClick={() => { setSubTab('history'); setHistoryPage(0) }}
+        >
+          Lịch sử
+        </button>
       </div>
 
-      <div className="deposits-list">
-        {filteredDeposits.map(d => (
-          <DepositCard
-            key={d.id.toString()}
-            deposit={d}
-            plan={planCache[d.planId.toString()] ?? null}
-            pendingInterest={pendingInterestMap[d.id.toString()] ?? null}
-            paused={paused}
-            expectedInterest={calcExpectedInterest(d)}
-            buttons={getButtonConfig(d)}
-            loadingAction={loadingAction}
-            onAction={handleAction}
-          />
-        ))}
-      </div>
+      {subTab === 'active' && (
+        <>
+          <div className="deposits-list">
+            {activeDeposits.length === 0 ? (
+              <div className="empty-state">
+                <p>Không có khoản gửi nào đang hoạt động.</p>
+              </div>
+            ) : activeDeposits.map(d => (
+              <DepositCard
+                key={d.id.toString()}
+                deposit={d}
+                plan={planCache[d.planId.toString()] ?? null}
+                pendingInterest={pendingInterestMap[d.id.toString()] ?? null}
+                paused={paused}
+                expectedInterest={calcExpectedInterest(d)}
+                buttons={getButtonConfig(d)}
+                loadingAction={loadingAction}
+                onAction={handleAction}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
-      {filteredDeposits.length === 0 && (
-        <div className="empty-state">
-          <p>Không có khoản gửi nào trong bộ lọc này.</p>
-        </div>
+      {subTab === 'history' && (
+        <>
+          {historyDeposits.length === 0 ? (
+            <div className="empty-state">
+              <p>Chưa có khoản gửi nào trong lịch sử.</p>
+            </div>
+          ) : (
+            <>
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Số tiền</th>
+                    <th>Gói</th>
+                    <th>APR</th>
+                    <th>Kết thúc</th>
+                    <th>Trạng thái</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyDeposits.slice(historyPage * historyPageSize, (historyPage + 1) * historyPageSize).map(d => {
+                    const plan = planCache[d.planId.toString()]
+                    const si = STATUS_LABELS[d.status]
+                    return (
+                      <tr key={d.id.toString()}>
+                        <td className="font-mono">#{d.id.toString()}</td>
+                        <td className="font-mono">{formatUSDC(d.principal)}</td>
+                        <td>{plan ? `${plan.tenorDays} ngày` : '—'}</td>
+                        <td className="font-mono">{formatBps(d.aprBpsAtOpen)}</td>
+                        <td>{formatDate(Number(d.maturityAt))}</td>
+                        <td><span className={`badge ${si.badgeClass}`}>{si.emoji} {si.label}</span></td>
+                        <td>
+                          <button className="btn btn-outline" style={{ height: 28, fontSize: 11, padding: '0 10px', whiteSpace: 'nowrap' }}
+                            onClick={() => handleAction(d.id, 'burn')}
+                            disabled={loadingAction === `${d.id.toString()}-burn`}>
+                            {loadingAction === `${d.id.toString()}-burn` ? '...' : 'Đốt NFT'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+
+              <div className="history-pagination">
+                <span className="pagination-info">
+                  {historyDeposits.length} khoản gửi
+                </span>
+                <div className="pagination-controls">
+                  <button className="btn btn-outline" style={{ height: 30, fontSize: 12, padding: '0 12px' }}
+                    disabled={historyPage === 0}
+                    onClick={() => setHistoryPage(p => Math.max(0, p - 1))}>
+                    ‹ Trước
+                  </button>
+                  <span className="pagination-pages">
+                    {historyPage + 1} / {totalHistoryPages}
+                  </span>
+                  <button className="btn btn-outline" style={{ height: 30, fontSize: 12, padding: '0 12px' }}
+                    disabled={historyPage >= totalHistoryPages - 1}
+                    onClick={() => setHistoryPage(p => Math.min(totalHistoryPages - 1, p + 1))}>
+                    Sau ›
+                  </button>
+                  <select className="input" style={{ width: 80, height: 30, fontSize: 12, marginLeft: 8 }}
+                    value={historyPageSize}
+                    onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(0) }}>
+                    {PAGE_SIZES.map(s => (
+                      <option key={s} value={s}>{s} dòng</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {modal === 'early' && modalDepositId !== null && (
@@ -526,6 +595,9 @@ function DepositCard({
             <span className="deposit-card__label">Lãi dự kiến</span>
             <span className="deposit-card__value deposit-card__interest">{formatUSDC(expectedInterest)} USDC</span>
           </div>
+        )}
+        {d.interestClaimed && d.status === 0 && (
+          <div className="deposit-card__interest-claimed">✅ Đã nhận lãi</div>
         )}
         {pendingInterest !== null && pendingInterest > 0n && d.status === 2 && (
           <div className="deposit-card__pending-label">
