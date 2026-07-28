@@ -30,7 +30,7 @@ export default function App() {
         </div>
       )}
       {activeTab === 'plans' && <PlansTab onDepositSuccess={handleDepositSuccess} />}
-      {activeTab === 'deposits' && <DepositsTab />}
+      {activeTab === 'deposits' && <DepositsTab onNavigateToPlans={() => setActiveTab('plans')} />}
       {activeTab === 'admin' && <AdminTab />}
     </Layout>
   )
