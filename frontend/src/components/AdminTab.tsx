@@ -137,6 +137,11 @@ export default function AdminTab() {
 
   const health = checkFundHealth(vaultBalance, totalObligations)
 
+  const surplus = vaultBalance > totalObligations ? vaultBalance - totalObligations : 0n
+  const obligationPct = vaultBalance > 0n
+    ? Math.min(Number((totalObligations * 10000n) / vaultBalance), 10000) / 100
+    : 0
+
   const formatLimit = (value: bigint): string => {
     if (value === 0n) return 'Không giới hạn'
     return formatUSDC(value)
@@ -346,12 +351,24 @@ export default function AdminTab() {
         </div>
       </div>
 
-      {totalObligations > 0n && (
-        <div className="admin-health-bar-track">
-          <div
-            className={`admin-health-bar-fill${health.isHealthy ? ' healthy' : ' danger'}`}
-            style={{ width: `${health.ratio}%` }}
-          />
+      {totalObligations > 0n && vaultBalance > 0n && (
+        <div className="admin-health-metrics">
+          <div className="admin-health-metric">
+            <span className="admin-health-metric-label">Tỷ lệ nghĩa vụ lãi / Số dư quỹ</span>
+            <strong className="admin-health-metric-value">{obligationPct}%</strong>
+            <div className="admin-health-metric-bar">
+              <div
+                className={`admin-health-metric-fill${obligationPct >= 90 ? ' danger' : obligationPct >= 70 ? ' warning' : ' healthy'}`}
+                style={{ width: `${Math.min(obligationPct, 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="admin-health-metric">
+            <span className="admin-health-metric-label">Số dư có thể rút</span>
+            <strong className="admin-health-metric-value" style={{ color: surplus > 0n ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+              {formatUSDC(surplus)} <span className="admin-stat-unit">USDC</span>
+            </strong>
+          </div>
         </div>
       )}
 

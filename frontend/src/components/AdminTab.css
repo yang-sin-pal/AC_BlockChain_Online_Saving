@@ -84,25 +84,61 @@
   color: #7F1D1D;
 }
 
-.admin-health-bar-track {
+.admin-health-metrics {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.admin-health-metric {
+  flex: 1;
+  background: var(--color-card);
+  border: 1.5px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-health-metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.admin-health-metric-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.admin-health-metric-bar {
   width: 100%;
-  height: 8px;
+  height: 6px;
   background: var(--color-border);
   border-radius: 99px;
   overflow: hidden;
+  margin-top: 2px;
 }
 
-.admin-health-bar-fill {
+.admin-health-metric-fill {
   height: 100%;
   border-radius: 99px;
   transition: width 0.4s ease;
 }
 
-.admin-health-bar-fill.healthy {
+.admin-health-metric-fill.healthy {
   background: var(--color-success);
 }
 
-.admin-health-bar-fill.danger {
+.admin-health-metric-fill.warning {
+  background: var(--color-accent);
+}
+
+.admin-health-metric-fill.danger {
   background: var(--color-danger);
 }
 
