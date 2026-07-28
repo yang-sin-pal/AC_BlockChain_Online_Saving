@@ -51,6 +51,8 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
 
   const [deposits, setDeposits] = useState<DepositInfo[]>([])
   const [planCache, setPlanCache] = useState<Record<string, PlanInfo>>({})
+  const planCacheRef = useRef(planCache)
+  planCacheRef.current = planCache
   const [pendingInterestMap, setPendingInterestMap] = useState<Record<string, bigint>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -108,7 +110,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
         }
       }
 
-      const newPlanCache = { ...planCache }
+      const newPlanCache = { ...planCacheRef.current }
       for (const pid of plansToFetch) {
         if (newPlanCache[pid]) continue
         const p = await savingCore.plans(pid)
@@ -129,7 +131,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [savingCore, address, planCache])
+  }, [savingCore, address])
 
   useEffect(() => {
     if (!initialLoadDone.current) {
