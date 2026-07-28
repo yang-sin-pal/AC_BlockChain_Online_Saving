@@ -52,6 +52,12 @@ async function main() {
   const artifactPath = `deployments/${artifact.network}.json`;
   fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
   console.log(`Deployment artifact saved to ${artifactPath}`);
+
+  const frontendPath = "frontend/src/config/contracts.json";
+  fs.mkdirSync("frontend/src/config", { recursive: true });
+  fs.writeFileSync(frontendPath, JSON.stringify(artifact, null, 2));
+  console.log(`Frontend config synced to ${frontendPath}`);
+
   console.log(JSON.stringify(artifact, null, 2));
 }
 
