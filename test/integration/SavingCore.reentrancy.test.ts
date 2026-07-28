@@ -1,15 +1,15 @@
 ﻿import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { fixtureWithPlan } from "../../helpers/fixtures";
-import { toUSDC, calculateExpectedInterest } from "../../helpers/utils";
+import { fixtureWithPlan } from "../helpers/fixtures";
+import { toUSDC, calculateExpectedInterest } from "../helpers/utils";
 import {
   DEFAULT_TENOR,
   DEFAULT_APR,
   GRACE_PERIOD,
   SECONDS_PER_DAY,
   PENALTY
-} from "../../helpers/constants";
+} from "../helpers/constants";
 
 describe("SavingCore — reentrancy", function () {
   async function fixtureWithReentrantAttacker() {

@@ -1,9 +1,9 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { fixtureWithPlan } from "../../helpers/fixtures";
-import { toUSDC, increaseTime, calculateExpectedInterest } from "../../helpers/utils";
-import { DEFAULT_TENOR, DEFAULT_APR, SECONDS_PER_DAY } from "../../helpers/constants";
+import { fixtureWithPlan } from "../helpers/fixtures";
+import { toUSDC, increaseTime, calculateExpectedInterest } from "../helpers/utils";
+import { DEFAULT_TENOR, DEFAULT_APR, SECONDS_PER_DAY } from "../helpers/constants";
 
 describe("SavingCore — C1: principal is always safe", function () {
   async function fixtureWithDeposit() {

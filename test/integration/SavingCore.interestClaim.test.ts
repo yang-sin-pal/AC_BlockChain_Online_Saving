@@ -1,9 +1,9 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { fixtureWithPlan } from "../../helpers/fixtures";
-import { toUSDC, increaseTime, calculateExpectedInterest } from "../../helpers/utils";
-import { DEFAULT_TENOR, DEFAULT_APR, PENALTY, SECONDS_PER_DAY } from "../../helpers/constants";
+import { fixtureWithPlan } from "../helpers/fixtures";
+import { toUSDC, increaseTime, calculateExpectedInterest } from "../helpers/utils";
+import { DEFAULT_TENOR, DEFAULT_APR, PENALTY, SECONDS_PER_DAY } from "../helpers/constants";
 
 describe("SavingCore — claimInterest", function () {
   async function fixtureWithDeposit() {

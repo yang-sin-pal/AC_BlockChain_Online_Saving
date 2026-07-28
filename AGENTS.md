@@ -28,9 +28,9 @@ A function is **not done** until: required test cases exist, every revert branch
 | Component | Status |
 |-----------|--------|
 | All `.sol` contracts | Complete — no stubs remain |
-| `test/unit/SavingCore/` | Complete — 10 files, 120 unit tests |
+| `test/unit/SavingCore/` | Complete — 4 files, 41 unit tests |
 | `test/unit/VaultManager/` | Complete — 8 files, 24 unit tests |
-| `test/integration/` | 1 file — `PauseInteraction.test.ts` (9 tests) |
+| `test/integration/` | Complete — 7 files, 88 cross-contract tests |
 | `test/helpers/` | Complete — `fixtures.ts`, `utils.ts`, `constants.ts` |
 | `scripts/*.ts` | Stub comments only |
 
@@ -91,17 +91,11 @@ Full conventions: `docs/project/code-convention.md`
 
 ## Test Structure
 
-- **`test/unit/SavingCore/`** — 10 files:
+- **`test/unit/SavingCore/`** — 4 files:
   - `SavingCore.openDeposit.test.ts` (11 tests)
   - `SavingCore.adminFunctions.test.ts` (11 tests)
-  - `SavingCore.withdrawAtMaturity.test.ts` (14 tests)
   - `SavingCore.earlyWithdraw.test.ts` (9 tests)
-  - `SavingCore.autoRenew.test.ts` (14 tests)
-  - `SavingCore.renewDeposit.test.ts` (14 tests)
-  - `SavingCore.reentrancy.test.ts` (4 tests)
   - `SavingCore.pause.test.ts` (10 tests)
-  - `SavingCore.c1.test.ts` (18 tests) — C1: claimPrincipal
-  - `SavingCore.interestClaim.test.ts` (15 tests) — C1: claimInterest, partial vault payment
 - **`test/unit/VaultManager/`** — 8 files:
   - `VaultManager.fundVault.test.ts` (3 tests)
   - `VaultManager.withdrawVault.test.ts` (4 tests)
@@ -111,8 +105,14 @@ Full conventions: `docs/project/code-convention.md`
   - `VaultManager.setSavingCore.test.ts` (2 tests)
   - `VaultManager.views.test.ts` (2 tests)
   - `VaultManager.reentrancy.test.ts` (1 test)
-- **`test/integration/`** — 1 file:
+- **`test/integration/`** — 7 files:
   - `PauseInteraction.test.ts` (9 tests) — cross-contract pause scenarios
+  - `SavingCore.withdrawAtMaturity.test.ts` (14 tests) — vault payment, vault insufficiency
+  - `SavingCore.autoRenew.test.ts` (14 tests) — auto-renew with vault-funded interest
+  - `SavingCore.renewDeposit.test.ts` (14 tests) — manual renewal with vault-funded interest
+  - `SavingCore.c1.test.ts` (18 tests) — C1: claimPrincipal, claimInterest, partial vault payment
+  - `SavingCore.interestClaim.test.ts` (15 tests) — claimInterest Path A/B, partial vault payment
+  - `SavingCore.reentrancy.test.ts` (4 tests) — reentrancy across SavingCore↔VaultManager
 - **`test/helpers/`** — Shared fixtures and utilities. **Import from here, not inline.**
   - `fixtures.ts`: `deployAllContractsFixture` (full setup), `fixtureWithPlan` (with default plan), `deployVaultManager` (minimal, no vault funding)
   - `utils.ts`: `toUSDC()`, `increaseTime()`, `calculateExpectedInterest()`
@@ -135,3 +135,4 @@ Key reference docs: `docs/project/assignment.md`, `docs/project/code-convention.
 - `burn` has no `nonReentrant` (safe — `_burn` makes no external calls) and no `whenNotPaused`
 - C1 `claimInterest` has two code paths: **Path A** (Active status — vault pays directly) and **Path B** (PrincipalClaimed — pays from `pendingInterest`). Tests must cover both.
 - `autoRenewDeposit` has no owner check — anyone (bot) can call it. This is intentional.
+- Integration tests import from `../helpers/` (one level up). Unit tests import from `../../helpers/` (two levels up). Moving test files between directories requires fixing these paths.
