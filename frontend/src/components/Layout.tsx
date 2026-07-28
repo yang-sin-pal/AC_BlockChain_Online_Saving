@@ -16,15 +16,21 @@ const TITLES: Record<TabId, string> = {
   admin: 'Quản trị hệ thống',
 }
 
+type TabRole = 'all' | 'user' | 'admin'
+
 interface LayoutProps {
   children: ReactNode
   activeTab: TabId
-  onTabChange: (tab: TabId) => void
-  hideAdmin?: boolean
+  onTabChange?: (tab: TabId) => void
+  role: TabRole
 }
 
-export default function Layout({ children, activeTab, onTabChange, hideAdmin }: LayoutProps) {
-  const tabs = hideAdmin ? ALL_TABS.filter((t) => t.id !== 'admin') : ALL_TABS
+export default function Layout({ children, activeTab, onTabChange, role }: LayoutProps) {
+  const tabs = role === 'admin'
+    ? ALL_TABS.filter((t) => t.id === 'admin')
+    : role === 'user'
+      ? ALL_TABS.filter((t) => t.id !== 'admin')
+      : ALL_TABS
   return (
     <div className="app-wrapper">
       <div className="app-container">
@@ -40,7 +46,7 @@ export default function Layout({ children, activeTab, onTabChange, hideAdmin }: 
             <button
               key={tab.id}
               className={`app-nav-btn${activeTab === tab.id ? ' active' : ''}`}
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => onTabChange?.(tab.id)}
             >
               {tab.label}
             </button>

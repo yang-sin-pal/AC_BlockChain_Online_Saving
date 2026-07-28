@@ -20,6 +20,9 @@ export default function App() {
     savingCore.owner().then((owner: string) => setIsAdmin(owner.toLowerCase() === address.toLowerCase()))
   }, [savingCore, address])
 
+  const role = !address ? 'all' : isAdmin ? 'admin' : 'user'
+  const effectiveTab: TabId = role === 'admin' ? 'admin' : activeTab
+
   const handleDepositSuccess = (depositId: bigint) => {
     setToast({ message: `Mở tài khoản thành công! Mã khoản gửi: #${depositId}`, type: 'success' })
     setActiveTab('deposits')
@@ -32,16 +35,16 @@ export default function App() {
   }, [toast])
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} hideAdmin={!isAdmin}>
+    <Layout activeTab={effectiveTab} onTabChange={role === 'admin' ? undefined : setActiveTab} role={role}>
       {toast && (
         <div className={`toast toast-${toast.type}`}>
           <span>{toast.type === 'success' ? '✅' : '❌'}</span>
           <span>{toast.message}</span>
         </div>
       )}
-      {activeTab === 'plans' && <PlansTab onDepositSuccess={handleDepositSuccess} />}
-      {activeTab === 'deposits' && <DepositsTab onNavigateToPlans={() => setActiveTab('plans')} />}
-      {activeTab === 'admin' && <AdminTab />}
+      {effectiveTab === 'plans' && <PlansTab onDepositSuccess={handleDepositSuccess} />}
+      {effectiveTab === 'deposits' && <DepositsTab onNavigateToPlans={() => setActiveTab('plans')} />}
+      {effectiveTab === 'admin' && <AdminTab />}
     </Layout>
   )
 }
