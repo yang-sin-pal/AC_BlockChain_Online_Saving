@@ -1,6 +1,6 @@
 ﻿# PLAN.md — Blockchain: Online Banking System (Term Deposit)
 
-> Deadline demo: **Wednesday, 29/7/2026** (tomorrow). Priority: solid core (90 points) + frontend (10 points) first. Bonus C1 done (+5), C2 pending (+5). Score capped at 100.
+> Deadline demo: **Wednesday, 29/7/2026** (tomorrow). Priority: solid core (90 points) + frontend (10 points). C1 done (+5 bonus), C2 skipped. Score capped at 100.
 
 ## Methodology: Test-Driven Development (TDD)
 
@@ -33,9 +33,9 @@
 | Day 6 (25/7) | **100% done** | Buffer day — non-owner revert tests, reentrancy mock + tests, Design Q1/Q2/Q7. 88 tests total. |
 | Day 7 (26/7) | **100% done** | Coverage > 90% verified. C1 implemented: claimPrincipal, claimInterest, burn, dual-pause, onlyDepositOwner modifier. C1 tests. 153 tests. |
 | Day 8 (27/7) | **100% done** | Coverage gap fixes — 7 new tests in SavingCore.coverage.test.ts. 160 tests. SC 93.06%, VM 96.67%. |
-| Day 9 (28/7) | **In progress** | Coverage verification + diagrams rewrite + README fix + AGENTS.md rewrite. **C2 next.** |
+| Day 9 (28/7) | **100% done** | Diagrams rewrite + README fix + AGENTS.md rewrite + frontend plan. **C2 skipped.** |
 
-**Schedule:** Today is 28/7 (Day 9). Days 1–8 complete + coverage verified — 160 tests passing.
+**Schedule:** Tomorrow is 29/7 (Day 10 — DEMO). Days 1–9 complete. Frontend ready to build.
 
 ### Test Count History
 
@@ -261,16 +261,26 @@
 - [x] **Test file move** — 6 integration tests moved from `test/unit/SavingCore/` to `test/integration/`, import paths fixed
 - [x] **`docs/audit/folder-structure.md` update** — tree diagram and descriptions updated
 - [x] **Phase 1 coverage verification** — 160 tests, SC 93.06%, VM 96.67%
-- [ ] **C2 (Solvency Guard) — next task**
+- [x] **Frontend development plan** — `docs/reports/frontend-development-plan.md`
+- [x] **TODO.md rewritten** — 9 frontend tasks, ~135 min estimated
 
 ---
 
-## Day 10 — Wednesday, 29/7 — DEMO (tomorrow)
+## Day 10 — Wednesday, 29/7 — DEMO
 
-- [ ] Morning: C2 Solvency Guard (if time permits)
-- [ ] Morning: final push — frontend demo + video recording
-- [ ] Verify repo structure matches assignment §11
-- [ ] Demo
+> Frontend development (Vite + React + TS) + deployment + demo video. C2 skipped.
+
+- [ ] Task 1: Deployment scripts (deploy.ts + seed.ts + hardhat config)
+- [ ] Task 2: Frontend scaffold (Vite + React + TS + ethers)
+- [ ] Task 3: Core utilities (format, networks, hooks)
+- [ ] Task 4: Layout + header + ConnectWallet
+- [ ] Task 5: PlansTab (view plans + open deposit)
+- [ ] Task 6: DepositsTab (view deposits + withdraw/renew/C1 flows)
+- [ ] Task 7: AdminTab (fund vault + create plan + pause)
+- [ ] Task 8: Polish + error handling + responsive
+- [ ] Task 9: Frontend report (`docs/reports/Frontend-Report.md`)
+- [ ] Record demo video (3–5 min)
+- [ ] Final `npx hardhat compile` + `npx hardhat test` + `npx hardhat coverage`
 
 ---
 
@@ -287,5 +297,5 @@
 | Frontend demo | 10 | ⏳ Pending (Day 10) | §7.3 |
 | Code quality & events | 5 | ✅ Done (throughout) | §5, §10 |
 | Bonus C1 | +5 | ✅ Done (Day 7) | §8.3 C1 |
-| Bonus C2 | +5 | ⏳ Pending (Day 10) | §8.3 C2 |
-| **Total** | **100 + 10 bonus** | **90 secured + 15 pending** | §9 |
+| Bonus C2 | +5 | ⏭️ Skipped (time constraint) | §8.3 C2 |
+| **Total** | **100 + 10 bonus** | **95 secured (90 core + 5 C1)** | §9 |
