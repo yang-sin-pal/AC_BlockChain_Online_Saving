@@ -150,3 +150,74 @@ Before testing, open at least one deposit via PlansTab (select plan → approve 
 | 1 | Find a Withdrawn deposit | "Đốt NFT" button visible |
 | 2 | Click "Đốt NFT" | Modal: "Bạn có chắc muốn đốt NFT #X?" |
 | 3 | Click "Xác nhận" | MetaMask popup → confirm → card may disappear (NFT no longer exists) |
+
+---
+
+## Manual Verification — AdminTab (Quản trị hệ thống)
+
+### Prerequisite: Use Deployer Account
+
+AdminTab requires the **deployer wallet** (`0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`) — the owner of the contracts. In MetaMask, import the Hardhat test private key:
+```
+0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+```
+
+### 7a. Owner Gate & System Info
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Connect a non-owner wallet | Shows: "Chỉ admin mới có thể xem trang này." |
+| 2 | Switch to deployer wallet | Page reloads with admin dashboard |
+| 3 | Wait for data load | 3 stat cards visible: "Số dư quỹ" (green), "Số dư USDC", "Tổng khoản gửi" |
+| 4 | Verify vault balance | Matches the 100,000 USDC funded in seed |
+| 5 | Verify admin USDC balance | Matches 10,000 USDC minted to deployer |
+| 6 | Check total deposits | Shows 0 initially (or count after opening deposits) |
+
+### 7b. Fund Health Warning
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | With only vault funded, check banner | Should show 🟢 **green** "Quỹ an toàn — Đủ khả năng trả lãi" (no deposits = no obligations) |
+| 2 | Check progress bar | Full green bar (ratio = 100%) |
+| 3 | Open several large deposits (via PlansTab) then return to Admin | Banner may turn 🔴 **red** "CẢNH BÁO: Quỹ không đủ trả lãi!" with deficit amount |
+| 4 | Check red progress bar | Bar width shows `vaultBalance / (obligations × 110%)` ratio |
+
+### 7c. Fund Vault
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Enter amount (e.g. 50000) in "Nạp tiền vào quỹ" input | Input accepts the number |
+| 2 | Click "Phê duyệt" | MetaMask popup → confirm → button becomes "Đã phê duyệt ✅" |
+| 3 | Click "Nạp tiền vào quỹ" | MetaMask popup → confirm → vault balance increases by 50,000 |
+| 4 | Verify stat card | "Số dư quỹ" shows updated total |
+| 5 | Verify health bar | Ratio improves (closer to 100%) |
+
+### 7d. Create Plan
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Fill form: Kỳ hạn = 30, APR = 200, Phạt = 300, Min = 10, Max = 10000 | All fields populated |
+| 2 | Click "Tạo kế hoạch" | MetaMask popup → confirm |
+| 3 | Verify plan table | New row appears: "Gói #3", "30 ngày", "2.00%", "3.00%", etc. |
+| 4 | Validation: leave APR = 0 and click Create | Error toast: "Kỳ hạn và APR phải lớn hơn 0" |
+
+### 7e. Plan Management (Enable/Disable)
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | In plan table, click toggle on "Gói #0" (90 ngày) | Toggle animates to gray "Tắt" |
+| 2 | Go to PlansTab | "90 ngày" card no longer shown (plan disabled) |
+| 3 | Return to Admin, toggle "Gói #0" back on | Toggle animates to green "Bật" |
+| 4 | Check PlansTab | "90 ngày" card re-appears |
+
+### 7f. Pause/Unpause System
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Click "Tạm dừng hệ thống" (red button) | MetaMask → confirm → button changes to "Tiếp tục hệ thống" (green) |
+| 2 | Check DepositsTab | Gold banner: "Hệ thống đang tạm dừng..." |
+| 3 | Check action buttons | "Rút khi đáo hạn", "Nhận lãi", "Gia hạn" disabled |
+| 4 | Verify "Rút trước hạn", "Nhận gốc", "Đốt NFT" still clickable | Buttons remain active |
+| 5 | Return to AdminTab, click "Tiếp tục hệ thống" | MetaMask → confirm → button reverts to "Tạm dừng hệ thống" |
+| 6 | Check DepositsTab | Gold banner gone, all buttons re-enabled |
+| 7 | Test "Tạm dừng quỹ" / "Tiếp tục quỹ" similarly | VaultManager pause toggles independently |
