@@ -156,6 +156,10 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
     return Math.floor(Date.now() / 1000) >= Number(maturityAt)
   }
 
+  const isPastGrace = (maturityAt: bigint): boolean => {
+    return Math.floor(Date.now() / 1000) >= Number(maturityAt) + GRACE_PERIOD_DAYS * 86400
+  }
+
   const calcExpectedInterest = (d: DepositInfo): bigint | null => {
     if (d.interestClaimed) return null
     const plan = planCache[d.planId.toString()]
@@ -173,12 +177,16 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
             { key: 'early', label: 'Rút trước hạn', style: 'btn-danger' as const, blockedByPause: false },
           ]
         }
-        return [
+        const buttons: { key: string; label: string; style: 'btn-success' | 'btn-outline' | 'btn-danger'; blockedByPause: boolean }[] = [
           { key: 'withdraw', label: 'Rút khi đáo hạn', style: 'btn-success' as const, blockedByPause: true },
           { key: 'claimPrincipal', label: 'Nhận gốc', style: 'btn-success' as const, blockedByPause: false },
           { key: 'claimInterest', label: 'Nhận lãi', style: 'btn-success' as const, blockedByPause: true },
           { key: 'renew', label: 'Gia hạn', style: 'btn-outline' as const, blockedByPause: true },
         ]
+        if (isPastGrace(d.maturityAt)) {
+          buttons.splice(3, 0, { key: 'autoRenew', label: 'Tự động gia hạn', style: 'btn-outline' as const, blockedByPause: true })
+        }
+        return buttons
       case 2:
         return [
           { key: 'claimInterest', label: 'Nhận lãi', style: 'btn-success' as const, blockedByPause: true },
@@ -206,6 +214,9 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       switch (action) {
         case 'withdraw':
           tx = await savingCore.withdrawAtMaturity(depositId)
+          break
+        case 'autoRenew':
+          tx = await savingCore.autoRenewDeposit(depositId)
           break
         case 'early':
           setModalDepositId(depositId)

@@ -16,11 +16,17 @@ npx hardhat run scripts/seed.ts --network localhost
 cd frontend && npm run dev
 ```
 
+```bash
+# Terminal 3 (optional): autoRenew demo with time-shifted deposits
+npx hardhat run scripts/seed-demo.ts --network localhost
+```
+
 1. Open `http://localhost:3000` in browser
 2. **MetaMask:** Add network `http://127.0.0.1:8545` (chain ID 31337)
 3. **Import wallet:** `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
 4. **Demo flow:** PlansTab → open a deposit → DepositsTab → AdminTab (pause, fund vault, create plan)
 5. **Switch wallets** (MetaMask) to see non-admin view / user view
+6. **autoRenew demo (optional):** Run `scripts/seed-demo.ts` then refresh frontend to see AutoRenewed badges + autoRenew button on matured deposits
 
 ---
 
@@ -163,7 +169,21 @@ Before testing, open at least one deposit via PlansTab (select plan → approve 
 | 3 | Check enabled buttons | "Rút trước hạn", "Nhận gốc", "Đốt NFT" remain clickable |
 | 4 | Unpause system | Banner disappears, all buttons re-enabled |
 
-### 6f. Burn Modal
+### 6f. AutoRenew Button (Active + matured + past grace)
+
+Only visible when `block.timestamp >= maturityAt + 4 days` (grace period).
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Run `seed-demo.ts` script to create time-shifted deposits | Script opens 4 deposits and fast-forwards time |
+| 2 | Refresh frontend → go to DepositsTab | Deposit #1 & #2 show 🟠 "Đã tự gia hạn" badge |
+| 3 | Find deposit #4 (180-day, Active, not yet matured) | No autoRenew button (not past maturity) |
+| 4 | Find deposit #3 (compounded, Active, matured, past grace) | "Tự động gia hạn" outline button visible alongside other actions |
+| 5 | Click "Tự động gia hạn" | MetaMask popup → confirm |
+| 6 | After confirm | Deposit #3 status → AutoRenewed (#4). New deposit #5 created with compounded principal |
+| 7 | Verify compounded amount | New deposit principal = old principal + interest (from 4% APR over 90 days) |
+
+### 6g. Burn Modal
 
 | Step | Action | Expected |
 |------|--------|----------|
@@ -241,3 +261,58 @@ AdminTab requires the **deployer wallet** (`0xf39Fd6e51aad88F6F4ce6aB8827279cffF
 | 5 | Return to AdminTab, click "Tiếp tục hệ thống" | MetaMask → confirm → button reverts to "Tạm dừng hệ thống" |
 | 6 | Check DepositsTab | Gold banner gone, all buttons re-enabled |
 | 7 | Test "Tạm dừng quỹ" / "Tiếp tục quỹ" similarly | VaultManager pause toggles independently |
+
+### 7g. Audit Log
+
+The audit log is at the bottom of AdminTab and queries 5 event types from SavingCore + VaultManager.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Scroll to "Nhật ký hệ thống" section | Table with columns: Thời gian, Loại, Mô tả, Giao dịch |
+| 2 | Verify initial load | Spinner shown during fetch, then log rows appear |
+| 3 | Check event types | Color-coded badges: DepositOpened (🟢 Đã mở), Withdrawn (⚫ Đã rút), Renewed (🟣 Gia hạn), InterestClaimed (🔵 Nhận lãi), VaultFunded (🟡 Nạp quỹ) |
+| 4 | Test pagination | Click "Sau ›" → page advances. Click "‹ Trước" → goes back |
+| 5 | Test page size | Click "25 dòng" → 25 rows shown. Click "50 dòng" → 50 rows shown |
+| 6 | Verify Explorer link | Each row has "🔗" link → opens etherscan-style URL (for localhost: `http://localhost:8545/tx/0x...`) |
+| 7 | Perform a new action (open deposit, withdraw, fund vault) then refresh | New log rows appear at the top of the table |
+
+### 7h. AutoRenew Demo Script
+
+Run after seed.ts to create time-shifted deposits demonstrating the autoRenew lifecycle.
+
+```bash
+npx hardhat run scripts/seed-demo.ts --network localhost
+```
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Run the script (requires seed.ts to have been run first) | Script connects to localhost contracts |
+| 2 | Verify plan check | If no plans found, error: "No plans found. Run seed.ts first" |
+| 3 | Watch Deposit #1 open + autoRenew | "Deposit #1 auto-renewed → Deposit #2" |
+| 4 | Watch fast-forward 94 days | Timestamp jumps past maturity + grace |
+| 5 | Watch Deposit #2 autoRenew (compounding) | "Deposit #2 auto-renewed → Deposit #3" with compounded principal |
+| 6 | Verify Deposit #4 (manual demo) | "500 USDC, 180-day plan (Active)" |
+| 7 | Check summary | 4 deposits listed with statuses |
+| 8 | Refresh frontend | DepositsTab shows: #1 & #2 as 🟠 "Đã tự gia hạn", #3 as Active (compounded), #4 as Active (180d) |
+
+**Expected terminal output:**
+```
+Found 3 plans. Creating demo deposits...
+--- Deposit #1: 90-day plan, auto-renewed ---
+Opened deposit #1: 1,000 USDC, 90-day plan
+  Fast-forwarded 94 days → past maturity + grace
+  ✅ Deposit #1 auto-renewed → Deposit #2
+  New deposit #2 : 1,010 USDC, status: 0 (Active)
+--- Deposit #2: auto-renew again (compounding) ---
+  Fast-forwarded another 94 days
+  ✅ Deposit #2 auto-renewed → Deposit #3
+  New deposit #3 : 1,020.1 USDC (compounded principal + interest)
+--- Deposit #3: Active deposit for manual demo ---
+Opened deposit #4: 500 USDC, 180-day plan (Active)
+--- Demo Summary ---
+Total deposits: 4
+  #1: AutoRenewed (status=4)
+  #2: AutoRenewed (status=4)
+  #3: Active (status=0) — compounded principal
+  #4: Active (status=0) — 500 USDC, 180-day plan (manual demo)
+```
