@@ -10,7 +10,7 @@ This document describes the use case diagram for the **Blockchain-Based Online S
 
 | Actor | Type | Description | Source |
 |-------|------|-------------|--------|
-| **Depositor** | Primary | User who opens deposits, withdraws funds, claims principal/interest, burns NFTs, and renews terms | §1, §8.3 |
+| **Depositor** | Primary | User who opens deposits, withdraws funds, claims principal/interest, and renews terms | §1, §8.3 |
 | **Bank Admin** | Primary | Manages saving plans, vault funding, fee receiver, system pause state, and vault-core link | §1, §4, §6 |
 | **Bot (off-chain)** | Secondary | External service that triggers auto-renew after the grace period expires | §3.5 |
 
@@ -33,7 +33,6 @@ flowchart LR
         UC_AutoRenew(["Auto-Renew"])
         UC_ClaimPrincipal(["Claim Principal"])
         UC_ClaimInterest(["Claim Interest"])
-        UC_Burn(["Burn NFT"])
         UC_TransferNFT(["Transfer NFT"])
         UC_CreatePlan(["Create Plan"])
         UC_UpdatePlan(["Update Plan APR"])
@@ -67,7 +66,6 @@ flowchart LR
     User --> UC_ManualRenew
     User --> UC_ClaimPrincipal
     User --> UC_ClaimInterest
-    User --> UC_Burn
     User --> UC_TransferNFT
     User --> UC_ViewPlans
     User --> UC_ViewDeposits
@@ -105,13 +103,12 @@ flowchart LR
 | 5 | **Auto-Renew** | Bot | After grace period (default: 4 days), bot triggers auto-renew; original APR is locked, same tenor; has `whenNotPaused` | §3.5 |
 | 6 | **Claim Principal** | Depositor | C1: Claim principal at maturity without vault dependency; interest deferred to `pendingInterest`; NO `whenNotPaused` — always available | §8.3 C1 |
 | 7 | **Claim Interest** | Depositor | C1: Claim interest with partial vault payment; supports Active (vault pays directly) and PrincipalClaimed (from `pendingInterest`) paths | §8.3 C1 |
-| 8 | **Burn NFT** | Depositor | Burn ERC721 certificate after full withdrawal; blocked if `pendingInterest > 0` via `_update` override | §2.2, §8.3 C1 |
-| 9 | **Transfer NFT** | Depositor | Transfer the ERC721 deposit certificate to another address; new owner becomes deposit owner | §2.2, §8.2 |
+| 8 | **Transfer NFT** | Depositor | Transfer the ERC721 deposit certificate to another address; new owner becomes deposit owner | §2.2, §8.2 |
 | 10 | **Create Plan** | Bank Admin | Create a new saving plan with tenor, APR, min/max deposit, and penalty | §4 |
 | 11 | **Update Plan APR** | Bank Admin | Change APR for a plan; only affects future deposits, never existing ones | §4 |
 | 12 | **Enable Plan** | Bank Admin | Allow users to open deposits for this plan | §4 |
 | 13 | **Disable Plan** | Bank Admin | Stop new deposits for this plan; existing deposits remain active | §4 |
-| 14 | **Pause SavingCore** | Bank Admin | Emergency stop; blocks `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit`; does NOT block `claimPrincipal`, `earlyWithdraw`, `openDeposit`, `burn` | §4 |
+| 14 | **Pause SavingCore** | Bank Admin | Emergency stop; blocks `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit`; does NOT block `claimPrincipal`, `earlyWithdraw`, `openDeposit` | §4 |
 | 15 | **Unpause SavingCore** | Bank Admin | Resume normal operations after pause | §4 |
 | 16 | **View Plans** | Depositor | Read list of enabled/disabled plans with their parameters | §7.3 |
 | 17 | **View Deposits** | Depositor | Read status and details of owned deposit NFTs | §7.3 |
@@ -159,7 +156,7 @@ flowchart LR
 
 | Pause Target | Blocks | Does NOT Block | Source |
 |-------------|--------|----------------|--------|
-| **SavingCore.paused** | `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit` | `claimPrincipal`, `earlyWithdraw`, `openDeposit`, `burn` | §4, §8.3 C1 |
+| **SavingCore.paused** | `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit` | `claimPrincipal`, `earlyWithdraw`, `openDeposit` | §4, §8.3 C1 |
 | **VaultManager.paused** | `withdrawVault`, `payInterest` (→ `claimInterest` reverts at vault level) | `fundVault`, `setFeeReceiver`, `setSavingCore` | §4 |
 | **Both paused** | All user withdrawals/renewals; vault completely frozen | `claimPrincipal` (uses SavingCore balance), `earlyWithdraw` (uses SavingCore balance), `openDeposit` | §8.3 C1 |
 
@@ -188,7 +185,6 @@ flowchart LR
 | Auto-Renew | BR-09 (grace period), BR-11 (APR lock), BR-12 (same tenor), BR-13 (new deposit created) |
 | Claim Principal | BR-18 (principal always safe, no vault dependency), BR-19 (interest deferred to pendingInterest) |
 | Claim Interest | BR-19 (partial vault payment with retry), BR-20 (pendingInterest tracking), BR-21 (full/ partial settlement) |
-| Burn NFT | BR-21 (blocked if pendingInterest > 0) |
 | Pause SavingCore | BR-16 (blocks withdrawAtMaturity, claimInterest, renewDeposit, autoRenewDeposit) |
 | Pause VaultManager | BR-16 (blocks withdrawVault and payInterest) |
 | Fund Vault | BR-10 (vault must have funds for interest payments) |

@@ -223,38 +223,6 @@ describe("SavingCore — C1: principal is always safe", function () {
     ).to.emit(savingCore, "InterestClaimed");
   });
 
-  // ─── 13. burn with pending interest → revert ───────────────────────────
-
-  it("#13 — burn with pending interest → reverts PendingInterestExists", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimPrincipal(0);
-
-    // pendingInterest > 0 → burn should revert
-    await expect(
-      savingCore.connect(user).burn(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_PendingInterestExists");
-  });
-
-  // ─── 14. burn after full claimInterest → succeeds ──────────────────────
-
-  it("#14 — burn after full claimInterest → succeeds", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    // claimInterest (Path A) — vault funded
-    await savingCore.connect(user).claimInterest(0);
-    // claimPrincipal — interestClaimed=true → status=Withdrawn
-    await savingCore.connect(user).claimPrincipal(0);
-
-    // pendingInterest == 0 → burn should succeed
-    await savingCore.connect(user).burn(0);
-    await expect(
-      savingCore.ownerOf(0),
-    ).to.be.reverted;
-  });
-
   // ─── 15. claimPrincipal when paused → interest stored as pending ─────
 
   it("#15 — claimPrincipal when paused → principal paid, interest deferred to pending", async function () {

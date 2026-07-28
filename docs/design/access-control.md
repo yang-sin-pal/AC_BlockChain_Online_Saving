@@ -34,7 +34,6 @@ Responsibilities include:
 - Claim principal (C1)
 - Claim interest (C1)
 - Renew deposits
-- Burn NFTs
 
 ---
 
@@ -76,7 +75,6 @@ Example:
 | `withdrawAtMaturity` | NFT Owner | `onlyDepositOwner` | `nonReentrant`, `whenNotPaused`, `onlyDepositOwner` |
 | `claimPrincipal` | NFT Owner | `onlyDepositOwner` | `nonReentrant`, `onlyDepositOwner` (**no `whenNotPaused`**) |
 | `claimInterest` | NFT Owner | `onlyDepositOwner` | `nonReentrant`, `whenNotPaused`, `onlyDepositOwner` |
-| `burn` | NFT Owner | `onlyDepositOwner` | `onlyDepositOwner` (no `nonReentrant`) |
 | `earlyWithdraw` | NFT Owner | `onlyDepositOwner` | `nonReentrant`, `onlyDepositOwner` (**no `whenNotPaused`**) |
 | `renewDeposit` | NFT Owner | `onlyDepositOwner` | `nonReentrant`, `whenNotPaused`, `onlyDepositOwner` |
 | `autoRenewDeposit` | Anyone | Public | `nonReentrant`, `whenNotPaused` (**no owner check**) |
@@ -111,7 +109,6 @@ When SavingCore is paused, the following functions are blocked:
 | `autoRenewDeposit` | YES | `whenNotPaused` |
 | `claimPrincipal` | **NO** | Users can always reclaim principal |
 | `earlyWithdraw` | **NO** | Users can always exit early |
-| `burn` | **NO** | No token transfers involved |
 | `openDeposit` | **NO** | New deposits still accepted |
 
 ## VaultManager Pause
@@ -156,7 +153,7 @@ When VaultManager is paused, the following functions are blocked:
                 ┌──────────────────┼──────────────────┐
                 ▼                  ▼                  ▼
         withdrawAtMaturity   claimPrincipal      earlyWithdraw
-        claimInterest        burn                renewDeposit
+        claimInterest                           renewDeposit
 
 ───────────────────────────────────────
 
@@ -218,8 +215,6 @@ The C1 (Principal Protection) feature guarantees users can always reclaim their 
 | NFT owner withdraws own deposit | Success |
 | NFT owner claims principal | Success |
 | NFT owner claims interest | Success |
-| NFT owner burns NFT | Success |
-| Non-owner tries to burn another's NFT | Revert (`SavingCore_NotOwner`) |
 | Bot calls autoRenewDeposit | Success |
 | NFT owner calls renewDeposit | Success |
 

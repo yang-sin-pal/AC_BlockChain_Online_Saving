@@ -48,17 +48,15 @@ The `withdrawAtMaturity` function is a convenience shortcut that pays both princ
   (principal+interest)       │     │  (compound)    (compound, anyone)
                              │     │     │     │     │
                              ▼     │     │     │     │
-                        Withdrawn  │     │     │     │
-                             ✗     │     │     │     │
-                          burn OK  │     │     │     │
+                         Withdrawn  │     │     │     │
+                              ✗     │     │     │     │
                                    │     │     │     │
                     claimPrincipal │     │     │     │
                     (C1: principal │     │     │     │
                      only, always  ▼     ▼     ▼     ▼
                      available)  Principal  Manual  Auto
-                                  Claimed  Renewed Renewed
-                                   ✗         ✗       ✗
-                                burn OK*  burn OK  burn OK
+                                   Claimed  Renewed Renewed
+                                    ✗         ✗       ✗
 
   ──────────────────────────────────────────────────────────────────
   INTEREST FLAG (parallel axis, does NOT change Status) :
@@ -72,7 +70,7 @@ The `withdrawAtMaturity` function is a convenience shortcut that pays both princ
   claimInterest partial (any state, vault < amount):
     No status change  [pendingInterest += remainder, interestClaimed stays false]
 
-  * burn blocked when pendingInterest > 0
+
 ```
 
 ### Transition Table
@@ -340,23 +338,6 @@ flowchart TD
 **Test coverage:** `SavingCore.autoRenew.test.ts` — 14 tests
 
 ---
-
-### 3.8 `burn(depositId)`
-
-```mermaid
-flowchart TD
-    A[burn] --> B{msg.sender == ownerOf?}
-    B -- No --> R1[revert NotOwner]
-    B -- Yes --> C{status == Active?}
-    C -- Yes --> R2[revert AlreadyWithdrawn]
-    C -- No --> D{pendingInterest > 0?}
-    D -- Yes --> R3[revert PendingInterestExists]
-    D -- No --> E[_burn NFT]
-```
-
-**Note:** `pendingInterest` check is in `_update` override, not in `burn` directly.
-
-**Test coverage:** `SavingCore.c1.test.ts` — 2 tests (#13, #14)
 
 ---
 

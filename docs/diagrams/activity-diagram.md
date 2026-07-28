@@ -23,7 +23,6 @@ This document describes the activity diagrams for the **Blockchain-Based Online 
 | `withdrawAtMaturity` | ✅ | ✅ | ✅ | — |
 | `claimPrincipal` | ✅ | — | ✅ | — |
 | `claimInterest` | ✅ | ✅ | ✅ | — |
-| `burn` | — | — | ✅ | — |
 | `earlyWithdraw` | ✅ | — | ✅ | — |
 | `renewDeposit` | ✅ | ✅ | ✅ | — |
 | `autoRenewDeposit` | ✅ | ✅ | — | — |
@@ -438,31 +437,7 @@ flowchart TD
 
 ---
 
-## 10. Burn NFT — §2.2, §8.3 C1
 
-> **Note:** `burn` has no `nonReentrant` (safe — only burns token). Blocked if `pendingInterest > 0` via `_update` override.
-
-```mermaid
-flowchart TD
-    subgraph User
-        J1([Start]) --> J2[Call burn<br/>depositId]
-    end
-
-    subgraph SavingCore
-        J3{"deposit status<br/>!= Active?"}
-        J4{pendingInterest<br/>depositId == 0?}
-        J5[Burn ERC721 NFT]
-    end
-
-    J2 --> J3
-    J3 -- No --> JR1([Revert: Cannot burn active deposit])
-    J3 -- Yes --> J4
-    J4 -- No --> JR2([Revert: PendingInterestExists])
-    J4 -- Yes --> J5
-    J5 --> JR3([End])
-```
-
----
 
 ## Flow Summary Table
 
@@ -477,4 +452,3 @@ flowchart TD
 | 7 | Vault & System | Admin | Partial | N/A | Balance check, one-shot setter | §4 |
 | 8 | Claim Principal | User | No check | Active, Withdrawn | Mature, interestClaimed | §8.3 C1 |
 | 9 | Claim Interest | User | ✅ Blocked | Active, PrincipalClaimed | interestClaimed, vault balance, pending | §8.3 C1 |
-| 10 | Burn NFT | User | No check | Withdrawn+ | pendingInterest == 0 | §2.2, §8.3 C1 |

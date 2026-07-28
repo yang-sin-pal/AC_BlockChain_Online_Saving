@@ -81,7 +81,6 @@ The Online Saving System is composed of three main smart contracts. The core pri
 | Auto renew: after grace period, original APR locked, same tenor | §3.5, §6 Rule 4 |
 | Claim principal (C1): claim principal without vault dependency, store interest as pending | §8.3 C1 |
 | Claim interest (C1): claim interest separately, partial vault payment support | §8.3 C1 |
-| Burn NFT: burn certificate after withdrawal, blocked if pending interest exists | §2.2, §3.1 point 5 |
 | Pause/unpause: emergency stop for renew/withdraw flows | §4, §6 Rule 6 |
 | ERC721 certificates: one NFT per deposit, status tracking | §2.2, §3.1 point 5, §7.1 |
 | Holds user principal: separate from vault | §1.1 key idea |
@@ -275,20 +274,6 @@ User → SavingCore.claimInterest(depositId)
 
 **Key design:** Supports partial vault payment. If vault insufficient, pays what's available and stores remainder for retry.
 
-### Burn NFT
-
-> **Source:** assignment.md §2.2, §3.1 point 5, §8.3 C1
-
-```
-User → SavingCore.burn(depositId)
-            │
-            ├── Verify: deposit is withdrawn (status != Active)  [§2.2]
-            ├── Verify: pendingInterest[depositId] == 0          [§8.3 C1]
-            └── _burn(depositId)                                 [§2.2]
-```
-
-**Key design:** Blocked if `pendingInterest > 0` — enforced via `_update()` override to prevent losing track of unpaid interest.
-
 ### Admin: Fund Vault
 
 > **Source:** assignment.md §4
@@ -393,7 +378,6 @@ The system has **two independent pause states** — one for SavingCore and one f
 │ Does NOT block:                     │     │                                     │
 │   • claimPrincipal (always safe)    │     └─────────────────────────────────────┘
 │   • earlyWithdraw (always safe)     │
-│   • burn (no transfers)             │
 │   • openDeposit (new deposits OK)   │
 └─────────────────────────────────────┘
 ```

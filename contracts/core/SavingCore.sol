@@ -43,14 +43,6 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         vaultManager = IVaultManager(_vaultManager);
     }
 
-    /// @dev Prevents burning the NFT while there is pending interest to claim (C1).
-    function _update(address to, uint256 tokenId, address auth) internal virtual override returns (address) {
-        if (to == address(0) && pendingInterest[tokenId] > 0) {
-            revert SavingCore_PendingInterestExists();
-        }
-        return super._update(to, tokenId, auth);
-    }
-
     // ---------- Admin: quản lý plan ----------
 
     /// @notice Creates a new saving plan with the given parameters.
@@ -347,14 +339,6 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         }
 
         emit Events.InterestClaimed(depositId, msg.sender, payAmount);
-    }
-
-    /// @notice Burns the deposit NFT certificate.
-    /// @dev Only callable after the deposit is withdrawn. Blocked if pending interest exists.
-    /// @param depositId ID of the deposit whose NFT to burn.
-    function burn(uint256 depositId) external onlyDepositOwner(depositId) {
-        if (deposits[depositId].status == Status.Active) revert SavingCore_AlreadyWithdrawn();
-        _burn(depositId);
     }
 
     /// @notice Early withdrawal — no interest, penalty deducted from principal.

@@ -34,7 +34,7 @@ Each rule describes:
 | BR-18 | User can always claim principal after maturity, regardless of vault balance (C1). | Principal safety is paramount — users can always reclaim their principal. | `claimPrincipal()` has no `whenNotPaused` modifier. Calculates interest and stores in `pendingInterest`. | Attempt claimPrincipal when vault is empty — should succeed. | §8.3 C1 |
 | BR-19 | Interest can be claimed separately with partial vault payment support (C1). | Users get interest when vault has funds; remainder stored as pending for retry. | `claimInterest()` checks vault balance. If vault >= interest → pays full. If vault < interest → pays partial, stores remainder in `pendingInterest`. | Simulate partial vault balance; verify partial payment and pending storage. | §8.3 C1 |
 | BR-20 | Renewal is allowed from `PrincipalClaimed` status. | Users can still renew even after claiming principal. | `renewDeposit()` and `autoRenewDeposit()` allow `PrincipalClaimed` status. Uses remaining principal only. | Renew a deposit after principal claim; verify new deposit has correct principal. | §8.3 C1 |
-| BR-21 | NFT cannot be burned if `pendingInterest > 0`. | Prevent losing track of unpaid interest. | `_update()` override reverts with `SavingCore_PendingInterestExists()` when `pendingInterest[tokenId] > 0` and transfer is to address(0). | Attempt to burn NFT with pending interest — should revert. | §8.3 C1 |
+
 
 ---
 
@@ -66,7 +66,7 @@ Every business rule should have at least one corresponding test case.
 | BR-03 | ☑ | `SavingCore.sol:62,89,98,106,113,118` `VaultManager.sol:36,43,51,59,65,70` | `onlyOwner` |
 | BR-04 | ☑ | `SavingCore.sol:149-150` | `aprBpsAtOpen`, `penaltyBpsAtOpen` snapshot in `_createDeposit` |
 | BR-05 | ☑ | `SavingCore.sol:155` | `_safeMint` in `_createDeposit` |
-| BR-06 | ☑ | `SavingCore.sol:205-213` | `onlyDepositOwner` modifier in `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit`, `burn` |
+| BR-06 | ☑ | `SavingCore.sol:205-213` | `onlyDepositOwner` modifier in `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit` |
 | BR-07 | ☑ | `SavingCore.sol:248,250,361` | `status` check in `withdrawAtMaturity`, `claimPrincipal`, `earlyWithdraw` |
 | BR-08 | ☑ | `SavingCore.sol:367-368,375` | Penalty calc + interest=0 in `earlyWithdraw` |
 | BR-09 | ☑ | `InterestLib.sol:12-20`, `SavingCore.sol:165-173` | `calculateInterest` in `_calcInterest` |
@@ -81,4 +81,3 @@ Every business rule should have at least one corresponding test case.
 | BR-18 | ☑ | `SavingCore.sol:270-302` | `claimPrincipal`: no `whenNotPaused`, stores interest as `pendingInterest`, status → `PrincipalClaimed` |
 | BR-19 | ☑ | `SavingCore.sol:304-347` | `claimInterest`: partial vault payment, Path A (Active) and Path B (PrincipalClaimed) |
 | BR-20 | ☑ | `SavingCore.sol:393,405` | `renewDeposit` allows `PrincipalClaimed` status via `_collectRenewalPrincipal` |
-| BR-21 | ☑ | `SavingCore.sol:46-58` | `_update()` override reverts when `pendingInterest[tokenId] > 0` and transfer is to address(0) |

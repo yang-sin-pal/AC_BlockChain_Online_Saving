@@ -191,7 +191,7 @@ Cross-contract tests — SavingCore↔VaultManager interactions, pause interacti
 - `SavingCore.withdrawAtMaturity.test.ts` – Maturity withdrawal with vault payment, vault insufficiency.
 - `SavingCore.autoRenew.test.ts` – Auto-renew with vault-funded interest.
 - `SavingCore.renewDeposit.test.ts` – Manual renewal with vault-funded interest.
-- `SavingCore.c1.test.ts` – C1: claimPrincipal, claimInterest, partial vault payment, burn guards.
+- `SavingCore.c1.test.ts` – C1: claimPrincipal, claimInterest, partial vault payment.
 - `SavingCore.interestClaim.test.ts` – claimInterest Path A/B, partial vault payment, retry.
 - `SavingCore.reentrancy.test.ts` – Reentrancy attacks across SavingCore↔VaultManager boundary.
 

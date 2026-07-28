@@ -291,7 +291,7 @@ Admin → AdminTab → click "Tạm dừng hệ thống"
   → MetaMask: savingCore.pause()
   → DepositsTab shows gold pause banner
   → Disabled: withdrawAtMaturity, claimInterest, renewDeposit
-  → Active: claimPrincipal, earlyWithdraw, burn
+  → Active: claimPrincipal, earlyWithdraw
 ```
 
 ### 6.7 Admin: Audit Log

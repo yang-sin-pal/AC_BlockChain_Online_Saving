@@ -31,7 +31,7 @@
 | Day 4 (23/7) | **100% done** | withdrawAtMaturity (12/12) + earlyWithdraw (9/9) + InterestLib. 51 tests total. Q4+Q5 drafted. |
 | Day 5 (24/7) | **100% done** | autoRenewDeposit (9/9) + renewDeposit (10/10) + admin branch tests (8). 78 tests total. Q3+Q6 drafted. |
 | Day 6 (25/7) | **100% done** | Buffer day — non-owner revert tests, reentrancy mock + tests, Design Q1/Q2/Q7. 88 tests total. |
-| Day 7 (26/7) | **100% done** | Coverage > 90% verified. C1 implemented: claimPrincipal, claimInterest, burn, dual-pause, onlyDepositOwner modifier. C1 tests. 153 tests. |
+| Day 7 (26/7) | **100% done** | Coverage > 90% verified. C1 implemented: claimPrincipal, claimInterest, dual-pause, onlyDepositOwner modifier. C1 tests. 153 tests. |
 | Day 8 (27/7) | **100% done** | Coverage gap fixes — 7 new tests in SavingCore.coverage.test.ts. 160 tests. SC 93.06%, VM 96.67%. |
 | Day 9 (28/7) | **100% done** | Diagrams rewrite + README fix + AGENTS.md rewrite + frontend plan. **C2 skipped.** |
 
@@ -226,7 +226,6 @@
 - [x] **C1 (Principal Protection) — implemented:**
   - [x] `claimPrincipal(depositId)` — pays principal from SavingCore, stores interest as `pendingInterest`
   - [x] `claimInterest(depositId)` — Path A (Active: vault pays) + Path B (PrincipalClaimed: pays from pending). Partial vault payment supported.
-  - [x] `burn(depositId)` — blocked if `pendingInterest > 0` via `_update` override
   - [x] Dual-pause architecture: SavingCore pause blocks vault-dependent ops, NOT principal withdrawal
   - [x] `onlyDepositOwner(depositId)` modifier — 6 functions
   - [x] C1 tests: 18 integration tests covering all paths + edge cases
@@ -241,7 +240,7 @@
 - [x] Run `npx hardhat coverage` — found SavingCore at 89.58% (below 90%)
 - [x] Analyzed 15 uncovered branches (4 OZ modifier false paths untestable, 11 testable)
 - [x] Added 7 coverage tests in `SavingCore.coverage.test.ts`:
-  - burn on Active deposit, burn by non-owner, claimPrincipal on Withdrawn/earlyWithdrawn
+  - claimPrincipal on Withdrawn/earlyWithdrawn
   - claimInterest with vault=0, renewDeposit on Withdrawn, autoRenewDeposit on Withdrawn
 - [x] Final coverage: **SavingCore 93.06%, VaultManager 96.67%** — both above 90%
 - [x] 160 tests passing
@@ -254,7 +253,7 @@
 
 - [x] **Activity diagram rewrite** — 10 flows with correct modifiers, CEI order, pause checks
 - [x] **Activity diagram Mermaid fix** — `\n` → `<br/>`, quoted diamond nodes with operators (`>=`, `<=`, `<`, `!=`)
-- [x] **Sequence diagram rewrite** — 13 sequences including C1, burn, setSavingCore, pause/unpause
+- [x] **Sequence diagram rewrite** — 13 sequences including C1, setSavingCore, pause/unpause
 - [x] **Use case diagram rewrite** — 26 use cases, corrected BR mappings
 - [x] **README.md verification** — found 9 outdated items, fixed all (line refs, test counts, file path, broken sentence)
 - [x] **AGENTS.md rewrite** — fully updated with current test counts, dual-pause architecture, onlyDepositOwner modifier

@@ -55,7 +55,7 @@ describe("SavingCore — claimInterest", function () {
     expect(deposit.interestClaimed).to.equal(true);
   });
 
-  // ─── 3. claimInterest: NFT stays with caller (not burned) ──────────
+  // ─── 3. claimInterest: NFT stays with caller ────────────────────────────
 
   it("#3 — claimInterest: NFT stays with caller", async function () {
     const { savingCore, user } = await loadFixture(fixtureWithDeposit);

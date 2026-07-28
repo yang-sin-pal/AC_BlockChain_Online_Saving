@@ -83,10 +83,6 @@ interface ISavingCore {
     /// @param depositId ID of the withdrawn deposit with pending interest.
     function claimInterest(uint256 depositId) external;
 
-    /// @notice Burns the deposit NFT certificate.
-    /// @param depositId ID of the deposit whose NFT to burn.
-    function burn(uint256 depositId) external;
-
     /// @notice Early withdrawal — no interest, penalty deducted from principal.
     /// @param depositId ID of the deposit to withdraw early.
     function earlyWithdraw(uint256 depositId) external;

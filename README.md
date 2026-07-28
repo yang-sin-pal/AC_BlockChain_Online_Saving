@@ -145,10 +145,10 @@ NFT owner, not the original depositor.
 
 The check is now extracted into an `onlyDepositOwner(depositId)` modifier (line 205–208)
 and applied to `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`,
-`renewDeposit`, and `burn`. The modifier calls `ownerOf(depositId)` which always returns
+`renewDeposit`. The modifier calls `ownerOf(depositId)` which always returns
 the current token holder. After Alice calls `transferFrom(alice, bob, depositId)`, Bob
 becomes `ownerOf(depositId)` and can call `withdrawAtMaturity`, `earlyWithdraw`,
-`claimPrincipal`, `claimInterest`, `renewDeposit`, or `burn`. Alice loses all rights
+`claimPrincipal`, `claimInterest`, or `renewDeposit`. Alice loses all rights
 — she cannot withdraw, and any attempt reverts.
 
 **Is this dangerous?** This is **intentional and beneficial**. The NFT acts as
@@ -292,7 +292,6 @@ it could drain the contract by withdrawing the same deposit multiple times.
 `claimPrincipal`, `claimInterest`) is protected by OpenZeppelin's `ReentrancyGuard`.
 The `nonReentrant` modifier sets a lock (`_status = _ENTERED`) before execution.
 Any re-entrant call detects the lock and reverts with `ReentrancyGuardReentrantCall`.
-`burn` intentionally omits `nonReentrant` — `_burn` makes no external calls.
 Verified by tests R1–R5 in `SavingCore.test.ts` and `VaultManager.test.ts`, which deploy
 `ReentrantAttacker.sol` — a malicious contract that attempts re-entry during the
 USDC transfer callback via `ReentrantToken`.
@@ -342,10 +341,6 @@ modifier — see Q2 for the full rationale. `claimInterest` IS blocked when paus
 (vault-dependent). During pause, `claimPrincipal` defers all interest to
 `pendingInterest` rather than touching the vault, ensuring the user always
 receives their principal even if the admin key is compromised.
-
-**Trade-off:** The NFT is the claim token. If the user sells or burns the NFT
-before calling `claimInterest`, the pending interest is lost. An `_update`
-override blocks burning while `pendingInterest > 0` to reduce this risk.
 
 **Verified by:** 18 tests in `SavingCore.c1.test.ts` and 15 tests in
 `SavingCore.interestClaim.test.ts`.

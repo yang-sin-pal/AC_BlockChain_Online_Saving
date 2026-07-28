@@ -301,27 +301,6 @@ sequenceDiagram
 
 ---
 
-## 10. Burn NFT — §2.2, §8.3 C1
-
-> **Note:** `burn` has no `nonReentrant` (safe — only burns token). Blocked if `pendingInterest > 0` via `_update` override.
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Core as SavingCore
-
-    User->>Core: burn(depositId)
-    Note right of User: §2.2 — burn NFT certificate after withdrawal
-
-    Core->>Core: _update override checks pendingInterest == 0
-    Note right of Core: Blocks burn if interest pending
-
-    Core->>Core: Burn ERC721 NFT
-    Note right of Core: NFT destroyed permanently
-```
-
----
-
 ## 11. Admin — Set SavingCore (One-Time) — §6
 
 ```mermaid
@@ -354,7 +333,7 @@ sequenceDiagram
         Note over Admin,Core: Pause SavingCore
         Admin->>Core: pause()
         Note right of Core: Blocks: withdrawAtMaturity, claimInterest, renewDeposit, autoRenewDeposit
-        Note right of Core: NOT blocked: claimPrincipal, earlyWithdraw, openDeposit, burn
+        Note right of Core: NOT blocked: claimPrincipal, earlyWithdraw, openDeposit
     end
 
     rect rgb(230, 255, 230)
@@ -420,4 +399,4 @@ sequenceDiagram
 - **CEI order**: State updates happen before external transfers in every flow. This prevents re-entrancy and double-claim bugs.
 - **Pause architecture**: SavingCore and VaultManager have independent pause switches. `claimPrincipal` is deliberately NOT blocked by either pause — principal is always safe (§8.3 C1).
 - **Partial vault payment**: If vault has insufficient funds during `claimInterest`, user receives partial payment and can retry later. `interestClaimed` stays false until full amount is received.
-- **NFT lifecycle**: Minted at deposit open. Burned after full withdrawal (principal claimed AND interest claimed or no pending interest). `burn` is blocked while `pendingInterest > 0`.
+- **NFT lifecycle**: Minted at deposit open. Remains with the depositor as proof of deposit.

@@ -31,31 +31,6 @@ describe("SavingCore — branch coverage gaps", function () {
     };
   }
 
-  // ─── 19. burn on Active deposit → reverts AlreadyWithdrawn ────────
-
-  it("#19 — burn on Active deposit → reverts AlreadyWithdrawn", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
-
-    await expect(
-      savingCore.connect(user).burn(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_AlreadyWithdrawn");
-  });
-
-  // ─── 20. burn by non-owner → reverts NotOwner ─────────────────────
-
-  it("#20 — burn by non-owner → reverts NotOwner", async function () {
-    const { savingCore, user } = await loadFixture(fixtureWithDeposit);
-
-    await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
-    await savingCore.connect(user).claimInterest(0);
-    await savingCore.connect(user).claimPrincipal(0);
-
-    const [, , other] = await ethers.getSigners();
-    await expect(
-      savingCore.connect(other).burn(0),
-    ).to.be.revertedWithCustomError(savingCore, "SavingCore_NotOwner");
-  });
-
   // ─── 21. claimPrincipal on Withdrawn deposit → reverts AlreadyWithdrawn ──
 
   it("#21 — claimPrincipal on Withdrawn deposit → reverts AlreadyWithdrawn", async function () {

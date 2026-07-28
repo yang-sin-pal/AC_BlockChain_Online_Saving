@@ -13,7 +13,7 @@
 | `pause`, `unpause` | Contract admin | `onlyOwner` | — |
 | `fundVault`, `withdrawVault`, `setFeeReceiver`, `setSavingCore` | Contract admin | `onlyOwner` (VaultManager) | — |
 | `openDeposit` | Anyone | — | — |
-| `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit`, `burn` | NFT holder | `onlyDepositOwner(depositId)` modifier | Checks `msg.sender == ownerOf(depositId)` |
+| `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit` | NFT holder | `onlyDepositOwner(depositId)` modifier | Checks `msg.sender == ownerOf(depositId)` |
 | `autoRenewDeposit` | Anyone | — | Bot-triggerable by design (§3.5) |
 
 **Finding:** Two distinct "owner" concepts exist — contract admin (`onlyOwner`) vs NFT deposit holder (`onlyDepositOwner`). These must not be confused. `autoRenewDeposit` is intentionally open to anyone.
@@ -24,8 +24,6 @@
 
 All external state-changing functions use `nonReentrant` from OpenZeppelin's `ReentrancyGuard`:
 - `openDeposit`, `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`, `renewDeposit`, `autoRenewDeposit`
-
-**Exception:** `burn()` does NOT have `nonReentrant` — it only calls `_burn()` (OZ internal), no external calls.
 
 **Verified:** Reentrancy tests confirm `ReentrancyGuardReentrantCall` on all attack surfaces (`SavingCore.reentrancy.test.ts`).
 
@@ -54,7 +52,6 @@ All functions follow CEI — state is updated before external calls:
 - Principal paid when paused
 - Interest deferred to pending when vault is empty or paused
 - Partial vault payment with retry
-- Burn blocked when `pendingInterest > 0`
 
 ---
 
@@ -106,15 +103,7 @@ All interest and penalty calculations use values snapshotted at deposit open tim
 
 ---
 
-## 10. NFT Burn Protection
-
-`_update` override prevents burning the NFT while `pendingInterest[tokenId] > 0`:
-- Blocks `_burn` calls via `revert SavingCore_PendingInterestExists()`
-- Ensures users cannot burn the certificate before claiming all interest
-
----
-
-## 11. Custom Errors
+## 10. Custom Errors
 
 All errors defined in `Errors.sol`, named `ContractName_Reason`. No `require(cond, "string")` used.
 
@@ -125,11 +114,10 @@ All errors defined in `Errors.sol`, named `ContractName_Reason`. No `require(con
 | `SavingCore_UseClaimInterest` | `withdrawAtMaturity` (principal already claimed) |
 | `SavingCore_UseClaimPrincipal` | `withdrawAtMaturity` (interest already claimed) |
 | `SavingCore_NoPendingInterest` | `claimInterest` Path B (empty pending) |
-| `SavingCore_PendingInterestExists` | `_update` / `burn` (NFT burn blocked) |
 
 ---
 
-## 12. Known Limitations
+## 11. Known Limitations
 
 1. **`withdrawAtMaturity` does NOT support partial payment** — if vault < interest, it reverts entirely. Users should use `claimPrincipal` + `claimInterest` for graceful degradation.
 2. **`autoRenewDeposit` mints to `msg.sender`** — if a bot triggers it, the new NFT goes to the bot, not the original depositor. The bot must transfer the NFT back.

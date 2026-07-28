@@ -48,14 +48,12 @@ User → approve(MockUSDC) → SavingCore.transferFrom() → SavingCore → Vaul
 
 | Pause | Blocks | Does NOT block |
 |-------|--------|----------------|
-| **SavingCore.paused** | `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit` | `claimPrincipal`, `earlyWithdraw`, `openDeposit`, `burn` |
+| **SavingCore.paused** | `withdrawAtMaturity`, `claimInterest`, `renewDeposit`, `autoRenewDeposit` | `claimPrincipal`, `earlyWithdraw`, `openDeposit` |
 | **VaultManager.paused** | `withdrawVault`, `payInterest` | `fundVault`, `setFeeReceiver`, `setSavingCore` |
 
 ### C1 — Principal Protection
 
 `claimPrincipal(depositId)` pays principal immediately from SavingCore, stores interest in `pendingInterest[depositId]`. User later calls `claimInterest(depositId)` to claim from vault. Supports partial vault payment. `interestClaimed` stays false until full amount received.
-
-`burn(depositId)` is blocked if `pendingInterest > 0`.
 
 ## Personal Variant (Student ID ending in 38)
 
@@ -166,7 +164,7 @@ Full conventions: `docs/project/code-convention.md`
 - `autoRenewDeposit` has no owner check — anyone (bot) can call it. Intentional.
 - C1 `claimInterest` has two paths: **Path A** (Active — vault pays) and **Path B** (PrincipalClaimed — pays from `pendingInterest`)
 - VaultManager's `payInterest` is `onlySavingCore` — use `impersonateAccount` in tests
-- `burn` has no `nonReentrant` and no `whenNotPaused` — safe, no external calls
+
 - Figma prototype (`Vietnamese Digital Banking App/`) uses inline styles, not CSS classes — reference for styling, not architecture
 - Frontend uses `oxlint` for linting, not eslint
 

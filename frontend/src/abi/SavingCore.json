@@ -233,11 +233,6 @@
   },
   {
     "inputs": [],
-    "name": "SavingCore_PendingInterestExists",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SavingCore_PlanNotEnabled",
     "type": "error"
   },
@@ -685,19 +680,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "depositId",
-        "type": "uint256"
-      }
-    ],
-    "name": "burn",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

@@ -234,7 +234,7 @@ Claims principal at maturity without depending on vault balance (C1). Calculates
 Claims interest from a previous partial withdrawal or after principal claim. Supports **partial vault payment**: if vault balance < interest amount, pays what's available and stores remainder in `pendingInterest` (allows retry).
 
 - **Access:** NFT owner only (`onlyDepositOwner` modifier).
-- **Business rules:** BR-19 (partial vault payment), BR-21 (interest claimable after principal claim).
+- **Business rules:** BR-19 (partial vault payment).
 - **Modifiers:** `nonReentrant`, `whenNotPaused`, `onlyDepositOwner`
 
 | Parameter | Type | Description |
@@ -246,19 +246,6 @@ Claims interest from a previous partial withdrawal or after principal claim. Sup
 - **Path B (status == PrincipalClaimed):** Claims from `pendingInterest` balance. If `pendingInterest == 0` → reverts with `SavingCore_NoPendingInterest()`. If `pendingInterest > 0` → pays what's available, updates `pendingInterest`. When `pendingInterest == 0` → sets `interestClaimed = true`, status → `Withdrawn`.
 
 ---
-
-#### burn
-
-Burns the deposit NFT certificate. Only callable after deposit is withdrawn. **Blocked if `status == Active`** (cannot burn a live deposit). Also **blocked if `pendingInterest > 0`** (enforced via `_update` override) — user must claim all pending interest before burning.
-
-- **Access:** NFT owner only (`onlyDepositOwner` modifier).
-- **Business rules:** BR-05 (NFT lifecycle management).
-- **Modifiers:** `onlyDepositOwner` (no `nonReentrant` — safe, only burns token).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `depositId` | `uint256` | ID of the deposit whose NFT to burn. |
-
 ---
 
 ### Events

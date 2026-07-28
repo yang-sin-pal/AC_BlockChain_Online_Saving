@@ -27,7 +27,7 @@ interface DepositsTabProps {
   onNavigateToPlans?: () => void
 }
 
-type ModalType = 'early' | 'renew' | 'burn' | null
+type ModalType = 'early' | 'renew' | null
 
 const STATUS_LABELS: Record<number, { label: string; badgeClass: string; emoji: string }> = {
   0: { label: 'Đang hoạt động', badgeClass: 'badge-success', emoji: '🟢' },
@@ -184,9 +184,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       case 1:
       case 3:
       case 4:
-        return [
-          { key: 'burn', label: 'Đốt NFT', style: 'btn-outline' as const, blockedByPause: false },
-        ]
+        return []
       default:
         return []
     }
@@ -240,11 +238,6 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
           setModal('renew')
           setLoadingAction(null)
           return
-        case 'burn':
-          setModalDepositId(depositId)
-          setModal('burn')
-          setLoadingAction(null)
-          return
       }
 
       if (tx) {
@@ -296,24 +289,6 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       refresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gia hạn thất bại')
-    } finally {
-      setLoadingAction(null)
-    }
-  }
-
-  const handleConfirmBurn = async () => {
-    if (!savingCore || modalDepositId === null) return
-    const actionKey = `${modalDepositId.toString()}-burn`
-    setLoadingAction(actionKey)
-    setError(null)
-    try {
-      const tx = await savingCore.burn(modalDepositId)
-      await tx.wait()
-      setModal(null)
-      setModalDepositId(null)
-      refresh()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Đốt NFT thất bại')
     } finally {
       setLoadingAction(null)
     }
@@ -449,13 +424,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
                         <td className="font-mono">{formatBps(d.aprBpsAtOpen)}</td>
                         <td>{formatDate(Number(d.maturityAt))}</td>
                         <td><span className={`badge ${si.badgeClass}`}>{si.emoji} {si.label}</span></td>
-                        <td>
-                          <button className="btn btn-outline" style={{ height: 28, fontSize: 11, padding: '0 10px', whiteSpace: 'nowrap' }}
-                            onClick={() => handleAction(d.id, 'burn')}
-                            disabled={loadingAction === `${d.id.toString()}-burn`}>
-                            {loadingAction === `${d.id.toString()}-burn` ? '...' : 'Đốt NFT'}
-                          </button>
-                        </td>
+
                       </tr>
                     )
                   })}
@@ -515,14 +484,6 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
         />
       )}
 
-      {modal === 'burn' && modalDepositId !== null && (
-        <BurnModal
-          depositId={modalDepositId}
-          loading={loadingAction === `${modalDepositId.toString()}-burn`}
-          onConfirm={handleConfirmBurn}
-          onClose={() => { setModal(null); setModalDepositId(null) }}
-        />
-      )}
     </div>
   )
 }
@@ -761,31 +722,4 @@ function RenewModal({
   )
 }
 
-function BurnModal({
-  depositId,
-  loading,
-  onConfirm,
-  onClose,
-}: {
-  depositId: bigint
-  loading: boolean
-  onConfirm: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h3 className="modal__title">Đốt NFT</h3>
-        <div className="modal__body">
-          <p>Bạn có chắc muốn đốt NFT #{depositId.toString()}? Hành động này không thể hoàn tác.</p>
-        </div>
-        <div className="modal__actions">
-          <button className="btn btn-outline" onClick={onClose} disabled={loading}>Hủy</button>
-          <button className="btn btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? 'Đang xử lý...' : 'Đốt NFT'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+

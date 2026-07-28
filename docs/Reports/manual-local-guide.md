@@ -97,7 +97,7 @@ Import any other Hardhat account in MetaMask, e.g.:
 Address:    0x70997970C51812dc3A010C7d01b50e0d17dc79C8
 Private key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 ```
-- Can open deposits, withdraw, renew, burn NFTs — sees PlansTab + DepositsTab
+- Can open deposits, withdraw, renew — sees PlansTab + DepositsTab
 - AdminTab hidden (nav button does not appear for non-owners)
 - **0 USDC initially** — see below to get test USDC
 
@@ -155,7 +155,7 @@ Private key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 | Active + not matured | 🔴 "Rút trước hạn" | Click → modal shows penalty → confirm → status = Withdrawn |
 | Active + matured | 🟢 "Rút khi đáo hạn" + 🟢 "Nhận gốc" + 🟢 "Nhận lãi" + "Gia hạn" | Test C1 flow below |
 | PrincipalClaimed | 🟢 "Nhận lãi" + "Gia hạn" | Sub-label: "còn X USDC lãi chờ nhận" |
-| Withdrawn / ManualRenewed / AutoRenewed | "Đốt NFT" | Click → confirm → NFT burned |
+
 
 ### 2c. C1 Flow (Active + Matured)
 
@@ -193,14 +193,6 @@ Requires `seed-demo.ts` to have been run (creates time-shifted deposits).
 | 4 | After confirm | Deposit #3 → AutoRenewed. New deposit created with compounded principal |
 | 5 | Verify Deposit #4 (180d, not matured) | No autoRenew button — not past maturity |
 
-### 2f. Burn Modal
-
-| Step | Action | Expected |
-|------|--------|----------|
-| 1 | Find a Withdrawn/AutoRenewed deposit | "Đốt NFT" button visible |
-| 2 | Click "Đốt NFT" | Modal: "Bạn có chắc muốn đốt NFT #X?" |
-| 3 | Click "Xác nhận" | MetaMask → confirm → card may disappear (NFT burned) |
-
 ### 2g. Pause State (cross-tab)
 
 | Step | Action | Expected |
@@ -208,7 +200,7 @@ Requires `seed-demo.ts` to have been run (creates time-shifted deposits).
 | 1 | Switch to AdminTab, pause SavingCore | Returns to DepositsTab |
 | 2 | Gold banner visible | "Hệ thống đang tạm dừng..." |
 | 3 | Check disabled buttons | "Rút khi đáo hạn", "Nhận lãi", "Gia hạn" greyed out (opacity 0.45) |
-| 4 | Check enabled buttons | "Rút trước hạn", "Nhận gốc", "Đốt NFT" remain clickable |
+| 4 | Check enabled buttons | "Rút trước hạn", "Nhận gốc" remain clickable |
 | 5 | Return to AdminTab, unpause | Banner gone, all buttons re-enabled |
 
 ---

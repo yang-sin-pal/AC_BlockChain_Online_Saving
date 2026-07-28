@@ -13,7 +13,7 @@
 |---|--------|----|----|----------------|
 | 1 | Sai tên trường struct trong health.ts | `deposit.amount`, `deposit.openedAt`, `deposit.aprBps` | `deposit.principal`, `deposit.startAt`, `deposit.aprBpsAtOpen`; dùng `plan.tenorDays` thay vì tính từ timestamp | `ISavingCore.sol:25-34` Deposit struct, `InterestLib.sol:18` formula |
 | 2 | Công thức nợ lãi thiếu pendingInterest | Chỉ tính interest cho Active | Cộng thêm `Σ(pendingInterest(depositId))` cho PrincipalClaimed. Accessor: `savingCore.pendingInterest(depositId)` | `SavingCore.sol:30` mapping public |
-| 3 | Banner tạm dừng sai | "Tạm dừng sẽ ngăn tất cả giao dịch rút tiền và gia hạn" | "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. Vẫn hoạt động: rút gốc (C1), rút trước hạn, đốt NFT" | `SavingCore.sol:251,278,310,364,391,437,355` modifier declarations |
+| 3 | Banner tạm dừng sai | "Tạm dừng sẽ ngăn tất cả giao dịch rút tiền và gia hạn" | "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. Vẫn hoạt động: rút gốc (C1), rút trước hạn" | `SavingCore.sol:251,278,310,364,391,437,355` modifier declarations |
 | 4 | Mô tả C1 flow sai trong §5.2 | Chỉ "Nhận gốc" hiển thị khi Active+matured; "Nhận lãi" sau khi PrincipalClaimed | Cả "Nhận gốc" + "Nhận lãi" đều hiển thị khi Active+matured (claimInterest Path A hoạt động trên Active) | `SavingCore.sol:327-330` claimInterest Path A |
 | 5 | Badge "Đã rút một phần" không tồn tại | Hàng "🟡 Interest partial" trong bảng status | Xóa hàng này. PrincipalClaimed deposits có pendingInterest > 0 hiển thị sub-label dưới badge | `ISavingCore.sol:8-14` Status enum chỉ có 5 giá trị |
 | 6 | Điều kiện chết trong TODO.md | "PrincipalClaimed + interestClaimed=true" | Xóa — trạng thái này không tồn tại (khi interestClaimed=true, status chuyển Withdrawn nguyên tử) | `SavingCore.sol:341-348` claimInterest |
@@ -521,7 +521,6 @@ Admin
 | Active + chưa đáo hạn | "Rút trước hạn" | earlyWithdraw (cảnh báo phạt) |
 | Active + đã đáo hạn | "Rút khi đáo hạn" + "Nhận gốc" + "Nhận lãi" + "Gia hạn" | withdrawAtMaturity / claimPrincipal / claimInterest / renewDeposit |
 | PrincipalClaimed | "Nhận lãi" + "Gia hạn" | claimInterest / renewDeposit |
-| Withdrawn / ManualRenewed / AutoRenewed | "Đốt NFT" | burn |
 
 **C1 Flow chi tiết:**
 
@@ -592,7 +591,7 @@ Khoản gửi Active + đã đáo hạn hiển thị **đồng thời** cả 4 n
 - Nút "Tiếp tục hệ thống" (unpause) — màu xanh
 - Hiển thị trạng thái hiện tại
 - **Cảnh báo pause:**
-  > "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. **Vẫn hoạt động:** rút gốc (C1), rút trước hạn, đốt NFT."
+  > "Tạm dừng sẽ ngăn: rút khi đáo hạn, nhận lãi, gia hạn, tự động gia hạn. **Vẫn hoạt động:** rút gốc (C1), rút trước hạn."
   >
   > Người dùng có thể toujours rút gốc và rút trước hạn ngay cả khi hệ thống tạm dừng.
 
@@ -755,7 +754,7 @@ Phương án C: Tách riêng — nhận lãi trước
 Nạp quỹ:     [Nhập số tiền] → [Phê duyệt] → [Nạp tiền] → ✅ Vault: 200,000 USDC
 Tạo kế hoạch: [Điền form] → [Tạo] → ✅ Kế hoạch #3 đã tạo
 Tạm dừng:     [Tạm dừng] → MetaMask: pause → ✅ Hệ thống tạm dừng
-              ⚠️ Rút gốc + rút trước hạn + đốt NFT vẫn hoạt động
+              ⚠️ Rút gốc + rút trước hạn vẫn hoạt động
 ```
 
 ---
