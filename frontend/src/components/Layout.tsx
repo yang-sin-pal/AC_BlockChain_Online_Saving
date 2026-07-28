@@ -26,7 +26,7 @@ export default function Layout({ children, activeTab, onTabChange }: LayoutProps
     <div className="app-wrapper">
       <div className="app-container">
         <div className="app-header">
-          <div className="app-brand">Term Deposit · Ethereum</div>
+          <div className="app-brand">AC BLOCKCHAIN ONLINE SAVING</div>
           <ConnectWallet />
         </div>
 
