@@ -69,8 +69,14 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
       setUsdcBalance(0n)
       return
     }
-    usdc.balanceOf(address).then(setUsdcBalance).catch(() => setUsdcBalance(0n))
-  }, [usdc, address])
+    const fetchBal = () => usdc.balanceOf(address).then(setUsdcBalance).catch(() => setUsdcBalance(0n))
+    fetchBal()
+    const p = signer?.provider
+    if (p) {
+      p.on('block', fetchBal)
+      return () => { void p.off('block', fetchBal) }
+    }
+  }, [usdc, address, signer])
 
   useEffect(() => {
     if (!usdc || !address || !savingCore) return

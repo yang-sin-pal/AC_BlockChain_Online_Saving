@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '../hooks/useWallet'
 import { formatUSDC, shortAddress } from '../utils/format'
 import { getNetworkName } from '../utils/networks'
@@ -17,16 +17,22 @@ export default function ConnectWallet() {
 
   const hasMetaMask = typeof window !== 'undefined' && !!window.ethereum
 
-  const fetchBalance = () => {
+  const fetchBalance = useCallback(() => {
     if (!address || !provider) {
       setUsdcBalance(0n)
       return
     }
     const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, provider)
     usdc.balanceOf(address).then(setUsdcBalance).catch(() => setUsdcBalance(0n))
-  }
+  }, [address, provider])
 
-  useEffect(fetchBalance, [address, provider])
+  useEffect(() => {
+    fetchBalance()
+    if (provider) {
+      provider.on('block', fetchBalance)
+      return () => { void provider.off('block', fetchBalance) }
+    }
+  }, [fetchBalance, provider])
 
   const handleConnect = async () => {
     setLoading(true)
