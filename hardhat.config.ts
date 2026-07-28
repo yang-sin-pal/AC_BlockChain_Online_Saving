@@ -1,4 +1,5 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, task } from "hardhat/config";
+import { TASK_COMPILE } from "hardhat/builtin-tasks/task-names";
 import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 
@@ -22,5 +23,11 @@ const config: HardhatUserConfig = {
     },
   },
 };
+
+task(TASK_COMPILE).setAction(async (args, hre, runSuper) => {
+  await runSuper();
+  const { main } = await import("./scripts/copy-abis");
+  main();
+});
 
 export default config;
