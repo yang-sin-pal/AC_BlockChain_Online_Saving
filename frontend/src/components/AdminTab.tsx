@@ -5,6 +5,7 @@ import { formatUSDC, parseUSDC, formatBps } from '../utils/format'
 import { calcTotalInterestObligations, calcActivePrincipal, checkFundHealth } from '../utils/health'
 import contractsConfig from '../config/contracts.json'
 import AuditLog from './AuditLog'
+import AddressDisplay from './AddressDisplay'
 import './AdminTab.css'
 
 interface PlanRow {
@@ -492,7 +493,7 @@ export default function AdminTab() {
             <label className="admin-form-label">ĐỊA CHỈ HIỆN TẠI</label>
             <div className="admin-address-display">
               {currentFeeReceiver
-                ? `${currentFeeReceiver.slice(0, 6)}...${currentFeeReceiver.slice(-5)}`
+                ? <AddressDisplay address={currentFeeReceiver} />
                 : 'Chưa thiết lập'}
             </div>
           </div>

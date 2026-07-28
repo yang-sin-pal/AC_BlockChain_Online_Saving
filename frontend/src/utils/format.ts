@@ -25,6 +25,11 @@ export function timeUntil(timestamp: number): string {
   return `còn ${diffDays} ngày`;
 }
 
+export function truncateAddress(address: string, start = 6, end = 4): string {
+  if (!address || address.length < start + end + 3) return address || ''
+  return `${address.slice(0, start)}...${address.slice(-end)}`
+}
+
 export function shortAddress(addr: string): string {
   if (addr.length < 10) return addr;
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;

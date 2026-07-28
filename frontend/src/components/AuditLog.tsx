@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Contract, EventLog } from 'ethers'
-import { formatUSDC, shortAddress } from '../utils/format'
+import { formatUSDC } from '../utils/format'
+import AddressDisplay from './AddressDisplay'
 import './AuditLog.css'
 
 const PAGE_SIZES = [10, 25, 50]
@@ -148,10 +149,10 @@ export default function AuditLog({ savingCore, vaultManager }: AuditLogProps) {
                       {meta.emoji} {meta.label}
                     </span>
                   </td>
-                  <td className="audit-addr">{r.address || '—'}</td>
+                  <td className="audit-addr"><AddressDisplay address={r.address} /></td>
                   <td className="audit-amount">{r.amount}</td>
                   <td className="audit-block">{r.blockNumber}</td>
-                  <td className="audit-txhash" title={r.txHash}>{shortAddress(r.txHash)}</td>
+                  <td className="audit-txhash"><AddressDisplay address={r.txHash} /></td>
                 </tr>
               )
             })}

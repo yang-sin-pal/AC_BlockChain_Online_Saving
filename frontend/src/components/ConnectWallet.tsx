@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '../hooks/useWallet'
-import { formatUSDC, shortAddress } from '../utils/format'
+import { formatUSDC } from '../utils/format'
 import { getNetworkName } from '../utils/networks'
 import { Contract } from 'ethers'
 import MockUSDCAbi from '../abi/MockUSDC.json'
 import contractsConfig from '../config/contracts.json'
+import AddressDisplay from './AddressDisplay'
 
 export default function ConnectWallet() {
   const { address, chainId, provider, signer, isConnected, isCorrectNetwork, connect, switchNetwork } = useWallet()
@@ -137,7 +138,7 @@ export default function ConnectWallet() {
           width: 6, height: 6, borderRadius: '50%', background: '#16A34A',
           boxShadow: '0 0 0 2px rgba(22,163,74,0.25)', display: 'inline-block',
         }} />
-        {shortAddress(address ?? '')}
+        <AddressDisplay address={address ?? ''} />
       </span>
 
       <span className="badge badge-info" style={{ fontSize: 11 }}>
