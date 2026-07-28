@@ -11,6 +11,7 @@ export default function ConnectWallet() {
   const [usdcBalance, setUsdcBalance] = useState<bigint>(0n)
   const [loading, setLoading] = useState(false)
   const [faucetLoading, setFaucetLoading] = useState(false)
+  const [faucetAmount, setFaucetAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [faucetMsg, setFaucetMsg] = useState<string | null>(null)
 
@@ -41,14 +42,18 @@ export default function ConnectWallet() {
 
   const handleFaucet = async () => {
     if (!signer || !address) return
+    const parsed = parseFloat(faucetAmount)
+    if (isNaN(parsed) || parsed <= 0) { setError('Nhập số USDC hợp lệ'); return }
+    const amount = BigInt(Math.floor(parsed * 1_000_000))
     setFaucetLoading(true)
     setFaucetMsg(null)
     setError(null)
     try {
       const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, signer)
-      const tx = await usdc.mint(address, 10_000_000_000n)
+      const tx = await usdc.mint(address, amount)
       await tx.wait()
-      setFaucetMsg('✅ Nhận 10,000 USDC thành công!')
+      setFaucetMsg(`✅ Nhận ${parsed.toLocaleString()} USDC thành công!`)
+      setFaucetAmount('')
       fetchBalance()
       setTimeout(() => setFaucetMsg(null), 3000)
     } catch (err: unknown) {
@@ -104,10 +109,22 @@ export default function ConnectWallet() {
         </div>
       </div>
 
-      <button className="btn btn-outline" style={{ height: 30, fontSize: 11, padding: '0 10px' }}
-        onClick={handleFaucet} disabled={faucetLoading}>
-        {faucetLoading ? 'Đang mint...' : 'Nhận USDC thử'}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <input type="number" min="0" step="any"
+          value={faucetAmount}
+          onChange={(e) => setFaucetAmount(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleFaucet()}
+          placeholder="Số USDC"
+          style={{
+            width: 70, height: 28, fontSize: 11, padding: '0 6px', border: '1px solid #ECE8E1',
+            borderRadius: 6, background: '#fff', color: '#1F1F1F', outline: 'none',
+          }}
+        />
+        <button className="btn btn-outline" style={{ height: 28, fontSize: 11, padding: '0 8px', whiteSpace: 'nowrap' }}
+          onClick={handleFaucet} disabled={faucetLoading}>
+          {faucetLoading ? 'Đang mint...' : 'Mint'}
+        </button>
+      </div>
 
       <span className="badge badge-success">
         <span style={{
