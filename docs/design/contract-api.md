@@ -222,9 +222,10 @@ Claims principal at maturity without depending on vault balance (C1). Calculates
 | `depositId` | `uint256` | ID of the matured deposit. |
 
 **Behavior:**
-- If `interestClaimed == true`: reverts with `SavingCore_PrincipalAlreadyClaimed()`
-- If `status == Active`: sets `status = PrincipalClaimed`, stores interest in `pendingInterest`
-- If `status == Withdrawn`: sets `status = Withdrawn` (interest was already claimed)
+- If `status == PrincipalClaimed`: reverts with `SavingCore_PrincipalAlreadyClaimed()`
+- If `status != Active`: reverts with `SavingCore_AlreadyWithdrawn()`
+- If `status == Active` and `interestClaimed == true`: sets `status = Withdrawn` (interest was already claimed)
+- If `status == Active` and `interestClaimed == false`: sets `status = PrincipalClaimed`, stores interest in `pendingInterest`
 
 ---
 
@@ -248,7 +249,7 @@ Claims interest from a previous partial withdrawal or after principal claim. Sup
 
 #### burn
 
-Burns the deposit NFT certificate. Only callable after deposit is withdrawn. **Blocked if `pendingInterest > 0`** (enforced via `_update` override).
+Burns the deposit NFT certificate. Only callable after deposit is withdrawn. **Blocked if `status == Active`** (cannot burn a live deposit). Also **blocked if `pendingInterest > 0`** (enforced via `_update` override) — user must claim all pending interest before burning.
 
 - **Access:** NFT owner only (`onlyDepositOwner` modifier).
 - **Business rules:** BR-05 (NFT lifecycle management).
@@ -329,7 +330,7 @@ Sets the SavingCore address. Can only be called once (one-shot setter). Reverts 
 
 #### pause
 
-Emergency stop — blocks `withdrawVault` on VaultManager.
+Emergency stop — blocks `withdrawVault` and `payInterest` on VaultManager.
 
 - **Access:** Owner only (`onlyOwner`).
 

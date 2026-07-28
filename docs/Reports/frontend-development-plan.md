@@ -64,6 +64,7 @@ frontend/
 │   │   └── AdminTab.tsx            # Quản trị: nạp quỹ, tạo kế hoạch, tạm dừng
 │   └── utils/
 │       ├── format.ts               # formatUSDC, parseUSDC, formatDate, timeUntil
+│       ├── health.ts               # calcTotalInterestObligations, checkFundHealth
 │       └── networks.ts             # Chain IDs, RPC URLs, tên mạng
 └── public/
     └── favicon.ico
@@ -111,7 +112,18 @@ networks: {
 }
 ```
 
-### 3.2 scripts/deploy.ts — Deploy + Lưu artifact
+### 3.2 Hằng số cá nhân hóa (Personal Variant)
+
+```ts
+const GRACE_PERIOD_DAYS = 4;        // Số ngày ân hạn sau đáo hạn
+const DEFAULT_APR_BPS = 400;        // APR mặc định 4.00%
+const PENALTY_BPS = 450;            // Phạt rút trước hạn 4.50%
+const DEFAULT_TENOR_DAYS = 180;     // Kỳ hạn mặc định
+```
+
+Hiển thị trên UI: "Kỳ hạn: 180 ngày — includes 4 ngày ân hạn trước khi áp dụng phạt"
+
+### 3.3 scripts/deploy.ts — Deploy + Lưu artifact
 
 Luồng thực thi:
 1. Lấy signer deployer
@@ -232,7 +244,8 @@ cd frontend && npm run dev
 - Tiêu đề: "Danh sách kế hoạch tiết kiệm"
 - Subtitle: "Chọn gói phù hợp và bắt đầu tiết kiệm ngay hôm nay"
 - 3 card kế hoạch (hiển thị dạng grid 3 cột)
-- Mỗi card: tên gói, kỳ hạn, APR, phạt, min/max, nút "Mở tài khoản"
+- Mỗi card: tên gói, kỳ hạn, **4 ngày ân hạn**, APR, phạt, min/max, nút "Mở tài khoản"
+- Grace period hiển thị rõ: "Kỳ hạn: 180 ngày — includes 4 ngày ân hạn trước khi áp dụng phạt"
 - Form mở tài khoản mới bên dưới:
   - Chọn kế hoạch (dropdown)
   - Nhập số tiền (input với validation min/max/số dư)
@@ -256,7 +269,7 @@ cd frontend && npm run dev
 - Tiêu đề: "Tiền gửi của tôi"
 - Subtitle: "Quản lý các khoản tiết kiệm đang hoạt động"
 - Danh sách tiền gửi (card list, mỗi card là 1 khoản gửi)
-- Mỗi card hiển thị: ID, gói, số tiền, APR, trạng thái, ngày đáo hạn, lãi dự kiến
+- Mỗi card hiển thị: ID, gói, số tiền, APR, trạng thái, ngày đáo hạn **+ 4 ngày ân hạn**, lãi dự kiến
 - Nút thao tác phụ thuộc trạng thái:
 
 | Trạng thái | Nút hiển thị | Hành động |
@@ -288,6 +301,19 @@ cd frontend && npm run dev
 - Trạng thái hệ thống (đang hoạt động / tạm dừng)
 - Tổng số khoản gửi
 
+**Phần 1b: Cảnh báo sức khỏe quỹ (Fund Health Warning)** ⚠️
+- Tính **Tổng nợ lãi** (total interest obligations): loop tất cả deposit có status == Active, tính lãi dự kiến cho mỗi khoản:
+  ```
+  interest = (deposit.amount * deposit.aprBps * (deposit.maturityAt - deposit.openedAt)) / (365 days * 10000)
+  totalObligations += interest
+  ```
+- Hiển thị: "Tổng nợ lãi: X USDC"
+- **So sánh với số dư quỹ × 110%** (safety margin):
+  - Nếu vaultBalance >= totalObligations × 1.1 → ✅ Banner xanh: "Quỹ an toàn — Đủ khả năng trả lãi"
+  - Nếu vaultBalance < totalObligations × 1.1 → 🔴 **Banner đỏ: "CẢNH BÁO: Quỹ không đủ trả lãi! Số dư: X USDC — Nợ lãi: Y USDC"**
+- Hiển thị progress bar: `vaultBalance / (totalObligations × 1.1)` với màu tương ứng
+- **Lưu ý:** Tính client-side bằng cách loop deposits on-chain (read-only, không tốn gas). C2 (on-chain tracking) đã bỏ qua, frontend tự tính.
+
 **Phần 2: Nạp tiền vào quỹ**
 - Input số tiền + nút "Phê duyệt" → "Nạp tiền vào quỹ"
 - Hiển thị số dư hiện tại của vault
@@ -301,6 +327,24 @@ cd frontend && npm run dev
 - Nút "Tạm dừng hệ thống" (pause) — màu đỏ
 - Nút "Tiếp tục hệ thống" (unpause) — màu xanh
 - Hiển thị trạng thái hiện tại
+
+**Phần 5: Nhật ký hoạt động gần đây (Audit Log)** — Time-permitting
+- Truy vấn events bằng `queryFilter` từ cả 2 contracts:
+  - SavingCore: `DepositOpened`, `Withdrawn`, `Renewed`, `InterestClaimed`
+  - VaultManager: `VaultFunded`
+- Bảng data-dense kiểu Etherscan:
+
+| Cột | Nội dung | Format |
+|-----|----------|--------|
+| Thời gian | Block timestamp | "36 giây trước", "2 phút trước" |
+| Sự kiện | Event name + badge màu | 🟢 Deposit, 🔴 Withdraw, 🔵 Renew, 🟡 Interest, ⚪ Fund |
+| Địa chỉ | User address | `0x1234...5678` + copy button |
+| Số tiền | USDC amount | `formatUSDC()` |
+| Tx Hash | Transaction hash | `0xabcd...1234` + link etherscan |
+
+- Dropdown chọn số dòng: 10 / 25 / 50
+- Pagination trên + dưới (kiểu Etherscan)
+- Auto-refresh khi có tx mới
 
 ---
 
@@ -334,7 +378,40 @@ timeUntil(timestamp: number): string    // "còn 88 ngày"
 shortAddress(addr: string): string      // "0x1234...5678"
 ```
 
-### 6.4 utils/networks.ts
+### 6.4 utils/health.ts — Fund Health Calculator
+
+```ts
+// Tính tổng nợ lãi client-side (thay cho C2 on-chain tracking)
+async function calcTotalInterestObligations(
+  savingCore: Contract,
+  nextDepositId: bigint
+): Promise<bigint> {
+  let totalObligations = 0n;
+  for (let i = 1n; i < nextDepositId; i++) {
+    const deposit = await savingCore.deposits(i);
+    if (deposit.status === 0n) { // Active
+      const interest = (deposit.amount * deposit.aprBps * (deposit.maturityAt - deposit.openedAt))
+        / (365n * 86400n * 10000n);
+      totalObligations += interest;
+    }
+  }
+  return totalObligations;
+}
+
+// Kiểm tra quỹ có an toàn không (≥ 110% nợ lãi)
+function checkFundHealth(
+  vaultBalance: bigint,
+  totalObligations: bigint
+): { isHealthy: boolean; ratio: number } {
+  const required = totalObligations * 110n / 100n;
+  return {
+    isHealthy: vaultBalance >= required,
+    ratio: vaultBalance === 0n ? 0 : Number(vaultBalance * 10000n / required) / 100
+  };
+}
+```
+
+### 6.5 utils/networks.ts
 
 ```ts
 NETWORKS = {
@@ -427,7 +504,7 @@ cd frontend && npm run dev
 5. **(30s)** Xem tiền gửi: hiển thị khoản gửi mới, trạng thái, ngày đáo hạn
 6. **(60s)** Rút tiền: Fast-forward thời gian → rút khi đáo hạn → nhận principal + interest
 7. **(30s)** C1 demo: claimPrincipal → claimInterest riêng biệt
-8. **(30s)** Quản trị: nạp quỹ, tạo kế hoạch mới
+8. **(30s)** Quản trị: nạp quỹ, tạo kế hoạch mới, **kiểm tra sức khỏe quỹ** (green banner)
 9. **(10s)** Kết luận
 
 ---
@@ -458,5 +535,7 @@ cd frontend && npm run dev
 | C1: Tách gốc/lãi | ✅ claimPrincipal → claimInterest riêng biệt |
 | Gia hạn | ✅ renewDeposit với chọn gói mới |
 | Quản trị | ✅ Nạp quỹ, tạo kế hoạch, tạm dừng |
+| Grace period | ✅ Hiển thị 4 ngày ân hạn trên plan card + deposit maturity |
+| Fund health warning | ✅ Banner đỏ khi quỹ < 110% nợ lãi, banner xanh khi an toàn |
 | Responsive | ✅ Desktop + tablet |
 | Vietnamese UI | ✅ Tất cả labels bằng tiếng Việt |
