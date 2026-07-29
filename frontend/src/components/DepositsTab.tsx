@@ -51,6 +51,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [blockTimestamp, setBlockTimestamp] = useState<number>(0)
   const [subTab, setSubTab] = useState<'active' | 'history'>('active')
   const [historyPage, setHistoryPage] = useState(0)
   const [historyPageSize, setHistoryPageSize] = useState(15)
@@ -116,6 +117,9 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
         }
       }
 
+      const block = await savingCore.runner?.provider?.getBlock("latest")
+      if (block) setBlockTimestamp(Number(block.timestamp))
+
       fetched.sort((a, b) => Number(b.id - a.id))
       setDeposits(fetched)
       setPlanCache(newPlanCache)
@@ -142,11 +146,11 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
   const totalHistoryPages = useMemo(() => Math.max(1, Math.ceil(historyDeposits.length / historyPageSize)), [historyDeposits, historyPageSize])
 
   const isMatured = (maturityAt: bigint): boolean => {
-    return Math.floor(Date.now() / 1000) >= Number(maturityAt)
+    return blockTimestamp >= Number(maturityAt)
   }
 
   const isPastGrace = (maturityAt: bigint): boolean => {
-    return Math.floor(Date.now() / 1000) >= Number(maturityAt) + GRACE_PERIOD_DAYS * 86400
+    return blockTimestamp >= Number(maturityAt) + GRACE_PERIOD_DAYS * 86400
   }
 
   const calcExpectedInterest = (d: DepositInfo): bigint | null => {
@@ -158,6 +162,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
 
   const getButtonConfig = (d: DepositInfo) => {
     const matured = isMatured(d.maturityAt)
+    const pastGrace = isPastGrace(d.maturityAt)
 
     switch (d.status) {
       case 0:
@@ -166,16 +171,20 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
             { key: 'early', label: 'Rút trước hạn', style: 'btn-danger' as const, blockedByPause: false },
           ]
         }
-        const buttons: { key: string; label: string; style: 'btn-success' | 'btn-outline' | 'btn-danger'; blockedByPause: boolean }[] = [
+        if (pastGrace) {
+          const buttons: { key: string; label: string; style: 'btn-success' | 'btn-outline' | 'btn-danger'; blockedByPause: boolean }[] = [
+            { key: 'claimPrincipal', label: 'Nhận gốc', style: 'btn-success' as const, blockedByPause: false },
+            ...(d.interestClaimed ? [] : [{ key: 'claimInterest' as const, label: 'Nhận lãi' as const, style: 'btn-success' as const, blockedByPause: true }]),
+            { key: 'autoRenew', label: 'Tự động gia hạn', style: 'btn-outline' as const, blockedByPause: true },
+          ]
+          return buttons
+        }
+        return [
           { key: 'withdraw', label: 'Rút khi đáo hạn', style: 'btn-success' as const, blockedByPause: true },
           { key: 'claimPrincipal', label: 'Nhận gốc', style: 'btn-success' as const, blockedByPause: false },
           ...(d.interestClaimed ? [] : [{ key: 'claimInterest' as const, label: 'Nhận lãi' as const, style: 'btn-success' as const, blockedByPause: true }]),
           { key: 'renew', label: 'Gia hạn', style: 'btn-outline' as const, blockedByPause: true },
         ]
-        if (isPastGrace(d.maturityAt)) {
-          buttons.splice(3, 0, { key: 'autoRenew', label: 'Tự động gia hạn', style: 'btn-outline' as const, blockedByPause: true })
-        }
-        return buttons
       case 2:
         return [
           { key: 'claimInterest', label: 'Nhận lãi', style: 'btn-success' as const, blockedByPause: true },
@@ -386,6 +395,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
                 buttons={getButtonConfig(d)}
                 loadingAction={loadingAction}
                 onAction={handleAction}
+                blockTimestamp={blockTimestamp}
               />
             ))}
           </div>
@@ -497,6 +507,7 @@ function DepositCard({
   buttons,
   loadingAction,
   onAction,
+  blockTimestamp,
 }: {
   deposit: DepositInfo
   plan: PlanInfo | null
@@ -506,13 +517,14 @@ function DepositCard({
   buttons: { key: string; label: string; style: 'btn-success' | 'btn-danger' | 'btn-outline'; blockedByPause: boolean }[]
   loadingAction: string | null
   onAction: (id: bigint, action: string) => void
+  blockTimestamp: number
 }) {
   const statusInfo = STATUS_LABELS[d.status] ?? { label: 'Không xác định', badgeClass: 'badge-neutral', emoji: '⚪' }
   const actionKey = `${d.id.toString()}`
   const isLoading = (action: string) => loadingAction === `${actionKey}-${action}`
   const planLabel = plan ? `${plan.tenorDays} ngày` : '—'
 
-  const now = Math.floor(Date.now() / 1000)
+  const now = blockTimestamp || Math.floor(Date.now() / 1000)
   const matured = now >= Number(d.maturityAt)
   const totalDuration = Number(d.maturityAt - d.startAt)
   const elapsed = Math.min(Math.max(now - Number(d.startAt), 0), totalDuration)

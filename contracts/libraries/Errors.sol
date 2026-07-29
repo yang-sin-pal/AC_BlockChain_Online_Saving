@@ -20,6 +20,7 @@ error SavingCore_InvalidDepositRange();
 error SavingCore_InvalidPenalty();
 error SavingCore_NotOwner();
 error SavingCore_GracePeriodNotElapsed();
+error SavingCore_PastGracePeriod();
 error SavingCore_NoPendingInterest();
 error SavingCore_PrincipalAlreadyClaimed();
 error SavingCore_InterestAlreadyClaimed();

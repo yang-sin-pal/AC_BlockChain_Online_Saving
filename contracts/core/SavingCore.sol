@@ -248,6 +248,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         if (deposit.interestClaimed) revert SavingCore_UseClaimPrincipal();
         // Design Q5: >= boundary — at the exact maturity second, withdrawal is allowed
         if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
+        if (block.timestamp >= uint256(deposit.maturityAt) + personalGracePeriod * 86400) revert SavingCore_PastGracePeriod();
 
         uint256 principal = deposit.principal;
         uint256 interest = _calcInterest(depositId);
@@ -387,6 +388,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
             oldDeposit.status == Status.AutoRenewed) revert SavingCore_AlreadyWithdrawn();
         // Same >= boundary as withdrawAtMaturity (Design Q5)
         if (block.timestamp < oldDeposit.maturityAt) revert SavingCore_NotYetMature();
+        if (block.timestamp >= uint256(oldDeposit.maturityAt) + personalGracePeriod * 86400) revert SavingCore_PastGracePeriod();
 
         // New plan validation
         if (newPlanId >= nextPlanId) revert SavingCore_PlanNotFound();
