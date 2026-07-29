@@ -5,7 +5,7 @@ export async function calcTotalInterestObligations(
   nextDepositId: bigint
 ): Promise<bigint> {
   let total = 0n
-  for (let i = 1n; i < nextDepositId; i++) {
+  for (let i = 0n; i < nextDepositId; i++) {
     const deposit = await savingCore.deposits(i)
     const status = Number(deposit.status)
     if (status === 0) {
@@ -25,7 +25,7 @@ export async function calcActivePrincipal(
   nextDepositId: bigint
 ): Promise<bigint> {
   let total = 0n
-  for (let i = 1n; i < nextDepositId; i++) {
+  for (let i = 0n; i < nextDepositId; i++) {
     const d = await savingCore.deposits(i)
     const status = Number(d.status)
     if (status === 0) total += d.principal

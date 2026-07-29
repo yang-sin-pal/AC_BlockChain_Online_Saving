@@ -81,7 +81,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       const pendingMap: Record<string, bigint> = {}
       const plansToFetch = new Set<string>()
 
-      for (let i = 1n; i < nextId; i++) {
+      for (let i = 0n; i < nextId; i++) {
         const owner = await savingCore.ownerOf(i)
         if (owner.toLowerCase() !== address.toLowerCase()) continue
 
