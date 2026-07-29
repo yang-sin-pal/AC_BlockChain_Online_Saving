@@ -48,7 +48,7 @@ export default function ConnectWallet() {
   }
 
   const handleFaucet = async () => {
-    if (!signer || !address) return
+    if (!signer || !address || !provider) return
     const parsed = parseFloat(faucetAmount)
     if (isNaN(parsed) || parsed <= 0) { setError('Nhập số USDC hợp lệ'); return }
     const amount = BigInt(Math.floor(parsed * 1_000_000))
@@ -58,7 +58,18 @@ export default function ConnectWallet() {
     try {
       const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, signer)
       const tx = await usdc.mint(address, amount)
-      await tx.wait()
+
+      let receipt
+      try {
+        receipt = await tx.wait()
+      } catch {
+        receipt = await provider.getTransactionReceipt(tx.hash)
+      }
+
+      if (receipt && receipt.status === 0) {
+        throw new Error('Giao dịch bị từ chối')
+      }
+
       setFaucetMsg(`✅ Nhận ${parsed.toLocaleString()} USDC thành công!`)
       setFaucetAmount('')
       fetchBalance()
