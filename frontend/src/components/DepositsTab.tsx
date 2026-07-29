@@ -200,10 +200,10 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
       let tx
       switch (action) {
         case 'withdraw':
-          tx = await savingCore.withdrawAtMaturity(depositId)
+          tx = await savingCore.withdrawAtMaturity(depositId, { gasLimit: 300_000n })
           break
         case 'autoRenew':
-          tx = await savingCore.autoRenewDeposit(depositId)
+          tx = await savingCore.autoRenewDeposit(depositId, { gasLimit: 300_000n })
           break
         case 'early':
           setModalDepositId(depositId)
@@ -211,10 +211,10 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
           setLoadingAction(null)
           return
         case 'claimPrincipal':
-          tx = await savingCore.claimPrincipal(depositId)
+          tx = await savingCore.claimPrincipal(depositId, { gasLimit: 300_000n })
           break
         case 'claimInterest':
-          tx = await savingCore.claimInterest(depositId)
+          tx = await savingCore.claimInterest(depositId, { gasLimit: 300_000n })
           break
         case 'renew':
           setModalDepositId(depositId)
@@ -260,7 +260,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
     setLoadingAction(actionKey)
     setError(null)
     try {
-      const tx = await savingCore.earlyWithdraw(modalDepositId)
+      const tx = await savingCore.earlyWithdraw(modalDepositId, { gasLimit: 300_000n })
       await tx.wait()
       setModal(null)
       setModalDepositId(null)
@@ -282,7 +282,7 @@ export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
     setLoadingAction(actionKey)
     setError(null)
     try {
-      const tx = await savingCore.renewDeposit(modalDepositId, renewPlanId)
+      const tx = await savingCore.renewDeposit(modalDepositId, renewPlanId, { gasLimit: 300_000n })
       await tx.wait()
       setModal(null)
       setModalDepositId(null)

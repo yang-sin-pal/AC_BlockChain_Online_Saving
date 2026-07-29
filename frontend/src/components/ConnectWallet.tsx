@@ -57,7 +57,7 @@ export default function ConnectWallet() {
     setError(null)
     try {
       const usdc = new Contract(contractsConfig.MockUSDC, MockUSDCAbi, signer)
-      const tx = await usdc.mint(address, amount)
+      const tx = await usdc.mint(address, amount, { gasLimit: 200_000n })
 
       let receipt
       try {

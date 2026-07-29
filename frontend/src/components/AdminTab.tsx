@@ -180,7 +180,7 @@ export default function AdminTab() {
     setFundApproveLoading(true)
     setError(null)
     try {
-      const tx = await usdc.approve(contractsConfig.VaultManager, fundAmountParsed)
+      const tx = await usdc.approve(contractsConfig.VaultManager, fundAmountParsed, { gasLimit: 300_000n })
       await tx.wait()
       const newAllowance = await usdc.allowance(address, contractsConfig.VaultManager)
       setFundAllowance(newAllowance)
@@ -199,7 +199,7 @@ export default function AdminTab() {
     setFundLoading(true)
     setError(null)
     try {
-      const tx = await vaultManager.fundVault(fundAmountParsed)
+      const tx = await vaultManager.fundVault(fundAmountParsed, { gasLimit: 300_000n })
       await tx.wait()
       setFundAmount('')
       setFundAllowance(0n)
@@ -219,7 +219,7 @@ export default function AdminTab() {
     setWithdrawLoading(true)
     setError(null)
     try {
-      const tx = await vaultManager.withdrawVault(withdrawParsed)
+      const tx = await vaultManager.withdrawVault(withdrawParsed, { gasLimit: 300_000n })
       await tx.wait()
       setWithdrawAmount('')
       refresh()
@@ -238,7 +238,7 @@ export default function AdminTab() {
     setFeeReceiverLoading(true)
     setError(null)
     try {
-      const tx = await vaultManager.setFeeReceiver(newFeeReceiver)
+      const tx = await vaultManager.setFeeReceiver(newFeeReceiver, { gasLimit: 300_000n })
       await tx.wait()
       setNewFeeReceiver('')
       refresh()
@@ -259,7 +259,7 @@ export default function AdminTab() {
     setCreateLoading(true)
     setError(null)
     try {
-      const tx = await savingCore.createPlan(td, ap, minD, maxD, pp)
+      const tx = await savingCore.createPlan(td, ap, minD, maxD, pp, { gasLimit: 300_000n })
       await tx.wait()
       setTenorDays('')
       setAprBps('')
@@ -280,8 +280,8 @@ export default function AdminTab() {
     setError(null)
     try {
       const tx = enable
-        ? await savingCore.enablePlan(planId)
-        : await savingCore.disablePlan(planId)
+        ? await savingCore.enablePlan(planId, { gasLimit: 300_000n })
+        : await savingCore.disablePlan(planId, { gasLimit: 300_000n })
       await tx.wait()
       refresh()
     } catch (err: unknown) {
@@ -298,8 +298,8 @@ export default function AdminTab() {
     setError(null)
     try {
       const calls = shouldPause
-        ? [savingCore.pause(), vaultManager.pause()]
-        : [savingCore.unpause(), vaultManager.unpause()]
+        ? [savingCore.pause({ gasLimit: 300_000n }), vaultManager.pause({ gasLimit: 300_000n })]
+        : [savingCore.unpause({ gasLimit: 300_000n }), vaultManager.unpause({ gasLimit: 300_000n })]
       const [tx1, tx2] = await Promise.all(calls)
       await Promise.all([tx1.wait(), tx2.wait()])
       refresh()

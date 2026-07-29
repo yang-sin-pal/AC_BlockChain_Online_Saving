@@ -2,6 +2,9 @@
 
 > For localhost demo on Hardhat node (chainId 31337).
 
+npx hardhat console --network localhost
+> const usdc = await ethers.getContractAt("MockUSDC", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
+> await usdc.mint("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", 1000000)
 ---
 
 ## 1. Prerequisites

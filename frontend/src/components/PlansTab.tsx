@@ -114,7 +114,7 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
     setApproveLoading(true)
     setError(null)
     try {
-      const tx = await usdc.approve(contractsConfig.SavingCore, derived.amountNum)
+      const tx = await usdc.approve(contractsConfig.SavingCore, derived.amountNum, { gasLimit: 300_000n })
       await tx.wait()
       const newAllowance = await usdc.allowance(address, contractsConfig.SavingCore)
       setAllowance(newAllowance)
@@ -135,8 +135,19 @@ export default function PlansTab({ onDepositSuccess }: PlansTabProps) {
     setDepositLoading(true)
     setError(null)
     try {
-      const tx = await savingCore.openDeposit(BigInt(selectedPlan.id), derived.amountNum)
-      await tx.wait()
+      const tx = await savingCore.openDeposit(BigInt(selectedPlan.id), derived.amountNum, { gasLimit: 300_000n })
+
+      let receipt
+      try {
+        receipt = await tx.wait()
+      } catch {
+        receipt = await signer?.provider?.getTransactionReceipt(tx.hash)
+      }
+
+      if (receipt && receipt.status === 0) {
+        throw new Error('Giao dịch bị từ chối')
+      }
+
       const nextId = await savingCore.nextDepositId()
       const depositId = nextId - 1n
       onDepositSuccess(depositId)

@@ -12,6 +12,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('plans')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [depositsKey, setDepositsKey] = useState(0)
   const { address, signer } = useWallet()
   const { savingCore } = useContracts(signer)
 
@@ -26,6 +27,7 @@ export default function App() {
   const handleDepositSuccess = (depositId: bigint) => {
     setToast({ message: `Mở tài khoản thành công! Mã khoản gửi: #${depositId}`, type: 'success' })
     setActiveTab('deposits')
+    setDepositsKey(k => k + 1)
   }
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function App() {
         </div>
       )}
       {effectiveTab === 'plans' && <PlansTab onDepositSuccess={handleDepositSuccess} />}
-      {effectiveTab === 'deposits' && <DepositsTab onNavigateToPlans={() => setActiveTab('plans')} />}
+      {effectiveTab === 'deposits' && <DepositsTab key={depositsKey} onNavigateToPlans={() => setActiveTab('plans')} />}
       {effectiveTab === 'admin' && <AdminTab />}
     </Layout>
   )
