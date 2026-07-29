@@ -9,11 +9,16 @@ function fmtUSDC(amount: bigint): string {
 
 async function main() {
   const artifact = JSON.parse(fs.readFileSync("deployments/localhost.json", "utf8"));
-  const [deployer] = await ethers.getSigners();
-  console.log("Demo seed with account:", deployer.address);
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
+  const user = signers[1];
+  console.log("Demo seed — deposits created for user:", user.address);
 
   const savingCore = await ethers.getContractAt("SavingCore", artifact.SavingCore);
   const usdc = await ethers.getContractAt("MockUSDC", artifact.MockUSDC);
+
+  const userUsdc = usdc.connect(user);
+  const userSavingCore = savingCore.connect(user);
 
   // Verify plans exist (seed.ts must have been run)
   const nextPlanId = await savingCore.nextPlanId();
@@ -23,27 +28,29 @@ async function main() {
   }
   console.log(`Found ${nextPlanId} plans. Creating demo deposits...`);
 
-  // Prepare USDC for demo deposits
+  // Prepare USDC for demo deposits (mint from deployer, then transfer to user)
   const depositAmount = toUSDC(1_000);
-  const deployerBal = await usdc.balanceOf(deployer.address);
-  if (deployerBal < depositAmount) {
-    await (await usdc.mint(deployer.address, depositAmount * 2n)).wait();
+  const userBal = await usdc.balanceOf(user.address);
+  if (userBal < depositAmount) {
+    await (await usdc.mint(user.address, depositAmount * 2n)).wait();
   }
-  await (await usdc.approve(savingCore.target, depositAmount * 10n)).wait();
+  await (await userUsdc.approve(savingCore.target, depositAmount * 10n)).wait();
   console.log(`Approved SavingCore for demo deposits`);
 
   // --- Deposit #1: Open → autoRenew after grace ---
   console.log("\n--- Deposit #1: 90-day plan, auto-renewed ---");
-  const tx1 = await savingCore.openDeposit(0, depositAmount);
+  const tx1 = await userSavingCore.openDeposit(0, depositAmount);
   const receipt1 = await tx1.wait();
   console.log(`Opened deposit #1: ${fmtUSDC(depositAmount)}, 90-day plan`);
   const block1 = await ethers.provider.getBlock(receipt1!.blockNumber);
   console.log(`  Maturity: ${new Date(Number(block1!.timestamp + 90 * 86400) * 1000).toISOString()}`);
 
-  // Fast-forward past maturity (90 days) + grace (4 days)
-  await ethers.provider.send("evm_increaseTime", [94 * 86400]);
+  // Fast-forward past maturity (90 days) + grace (4 days) + 1s buffer
+  const blockBefore = await ethers.provider.getBlock("latest");
+  const targetTime = Number(blockBefore!.timestamp) + 94 * 86400 + 1;
+  await ethers.provider.send("evm_setNextBlockTimestamp", [targetTime]);
   await ethers.provider.send("evm_mine", []);
-  console.log("  Fast-forwarded 94 days → past maturity + grace");
+  console.log("  Fast-forwarded past maturity + grace");
 
   const txAuto1 = await savingCore.autoRenewDeposit(1n);
   await txAuto1.wait();
@@ -57,9 +64,11 @@ async function main() {
   // --- Deposit #2: autoRenew again → demonstrates compounding ---
   console.log("\n--- Deposit #2: auto-renew again (compounding) ---");
 
-  await ethers.provider.send("evm_increaseTime", [94 * 86400]);
+  const blockMid = await ethers.provider.getBlock("latest");
+  const targetTime2 = Number(blockMid!.timestamp) + 94 * 86400 + 1;
+  await ethers.provider.send("evm_setNextBlockTimestamp", [targetTime2]);
   await ethers.provider.send("evm_mine", []);
-  console.log("  Fast-forwarded another 94 days");
+  console.log("  Fast-forwarded another 94 days + buffer");
 
   const txAuto2 = await savingCore.autoRenewDeposit(2n);
   await txAuto2.wait();
@@ -69,9 +78,9 @@ async function main() {
   console.log(`  New deposit #3 : ${fmtUSDC(d3.principal)} (compounded principal + interest)`);
   console.log(`  APR locked at: ${d3.aprBpsAtOpen} bps (4.00%)`);
 
-  // --- Deposit #3: User deposit for manual demo ---
-  console.log("\n--- Deposit #3: Active deposit for manual demo ---");
-  const tx4 = await savingCore.openDeposit(1, toUSDC(500));
+  // --- User deposit for manual demo ---
+  console.log("\n--- Active deposit for manual demo ---");
+  const tx4 = await userSavingCore.openDeposit(1, toUSDC(500));
   await tx4.wait();
   console.log(`Opened deposit #4: ${fmtUSDC(toUSDC(500))}, 180-day plan (Active)`);
 
