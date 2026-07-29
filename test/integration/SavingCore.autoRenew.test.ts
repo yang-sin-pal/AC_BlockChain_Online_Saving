@@ -250,8 +250,8 @@ describe("SavingCore — autoRenewDeposit", function () {
     // Bot triggers auto-renew
     await savingCore.connect(bot).autoRenewDeposit(0);
 
-    // New deposit minted to the bot (msg.sender)
-    expect(await savingCore.ownerOf(1)).to.equal(await bot.getAddress());
+    // New deposit still belongs to original owner (not the bot)
+    expect(await savingCore.ownerOf(1)).to.equal(await user.getAddress());
   });
 
   // ─── 14. autoRenewDeposit when paused → revert ───────────────

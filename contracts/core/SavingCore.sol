@@ -125,6 +125,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     /// @param tenorDays Term length in days.
     /// @return depositId ID of the newly created deposit.
     function _createDeposit(
+        address to,
         uint256 planId,
         uint256 principal,
         uint16 aprBps,
@@ -150,7 +151,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
             interestClaimed: false
         });
 
-        _safeMint(msg.sender, depositId);
+        _safeMint(to, depositId);
         return depositId;
     }
 
@@ -228,7 +229,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
             revert SavingCore_DepositAboveMax();
 
         usdc.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 depositId = _createDeposit(planId, amount, plan.aprBps, plan.earlyWithdrawPenaltyBps, plan.tenorDays);
+        uint256 depositId = _createDeposit(msg.sender, planId, amount, plan.aprBps, plan.earlyWithdrawPenaltyBps, plan.tenorDays);
 
         uint256 maturity_ = uint256(block.timestamp) + uint256(plan.tenorDays) * 86400;
         emit Events.DepositOpened(depositId, msg.sender, planId, amount, maturity_, plan.aprBps);
@@ -402,6 +403,7 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         // Mint new deposit with NEW plan's parameters
         Plan storage newPlan = plans[newPlanId];
         uint256 newDepositId = _createDeposit(
+            msg.sender,
             newPlanId,
             newPrincipal,
             newPlan.aprBps,
@@ -437,8 +439,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         // CEI: update old deposit status BEFORE external calls
         deposits[depositId].status = Status.AutoRenewed;
 
-        // Mint new deposit with same plan (same tenor + locked APR)
+        // Mint new deposit with same plan (same tenor + locked APR) — preserve original owner
         uint256 newDepositId = _createDeposit(
+            ownerOf(depositId),
             oldDeposit.planId,
             newPrincipal,
             oldDeposit.aprBpsAtOpen,
