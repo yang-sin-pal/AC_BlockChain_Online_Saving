@@ -87,13 +87,8 @@ export default function AdminTab() {
       setVaultBalance(vb)
       setCurrentFeeReceiver(fr)
 
-      const scPausedRaw = scp
-      setScPaused(scPausedRaw)
+      setScPaused(scp)
       setVmPaused(vmp)
-
-      if (scPausedRaw) {
-        setLoading(false)
-      }
 
       const [obligations, activeP] = await Promise.all([
         calcTotalInterestObligations(savingCore, td),
@@ -293,15 +288,21 @@ export default function AdminTab() {
 
   const handleTogglePause = async () => {
     if (!savingCore || !vaultManager) return
-    const shouldPause = !scPaused && !vmPaused
-    setPauseLoading(shouldPause ? 'pause' : 'unpause')
     setError(null)
     try {
-      const calls = shouldPause
-        ? [savingCore.pause({ gasLimit: 300_000n }), vaultManager.pause({ gasLimit: 300_000n })]
-        : [savingCore.unpause({ gasLimit: 300_000n }), vaultManager.unpause({ gasLimit: 300_000n })]
-      const [tx1, tx2] = await Promise.all(calls)
-      await Promise.all([tx1.wait(), tx2.wait()])
+      const [scPausedNow, vmPausedNow] = await Promise.all([
+        savingCore.paused(),
+        vaultManager.paused(),
+      ])
+      const shouldPause = !scPausedNow && !vmPausedNow
+      setPauseLoading(shouldPause ? 'pause' : 'unpause')
+      if (shouldPause) {
+        await (await savingCore.pause({ gasLimit: 300_000n })).wait()
+        await (await vaultManager.pause({ gasLimit: 300_000n })).wait()
+      } else {
+        await (await savingCore.unpause({ gasLimit: 300_000n })).wait()
+        await (await vaultManager.unpause({ gasLimit: 300_000n })).wait()
+      }
       refresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Thay đổi trạng thái thất bại')
