@@ -79,6 +79,7 @@ async function main() {
     { tenor: 90, apr: 400, min: 100, max: 50_000, penalty: 450 },
     { tenor: 180, apr: 400, min: 100, max: 50_000, penalty: 450 },
     { tenor: 365, apr: 600, min: 500, max: 100_000, penalty: 450 },
+    { tenor: 7, apr: 400, min: 100, max: 50_000, penalty: 450 },
   ];
 
   for (const p of plans) {
@@ -127,52 +128,69 @@ async function main() {
   console.log("Minted and approved USDC for user");
 
   const block0 = await ethers.provider.getBlock("latest");
+  const T0 = Number(block0!.timestamp);
 
-  console.log("\n--- Deposit #0: 365-day, 1000 USDC (within grace) ---");
+  console.log("\n========== Timeline: T0 = now ==========");
+
+  console.log("\n--- Deposit #0: 365-day, 1000 USDC (within grace at T0+367) ---");
   const tx0 = await userSavingCore.openDeposit(2, toUSDC(1_000));
   await tx0.wait();
-  console.log("  Opened deposit #0 — use for withdrawAtMaturity");
+  console.log("  #0: T0 — 365d plan → matures at T0+365d; use for withdrawAtMaturity");
 
-  console.log("\n--- Deposit #1: 365-day, 1000 USDC (within grace) ---");
+  console.log("\n--- Deposit #1: 365-day, 1000 USDC (within grace at T0+367) ---");
   const tx1 = await userSavingCore.openDeposit(2, toUSDC(1_000));
   await tx1.wait();
-  console.log("  Opened deposit #1 — use for claimPrincipal → claimInterest");
+  console.log("  #1: T0 — 365d plan → matures at T0+365d; use for claimPrincipal→claimInterest");
 
-  console.log("\n--- Deposit #2: 365-day, 500 USDC (within grace) ---");
+  console.log("\n--- Deposit #2: 365-day, 500 USDC (within grace at T0+367) ---");
   const tx2 = await userSavingCore.openDeposit(2, toUSDC(500));
   await tx2.wait();
-  console.log("  Opened deposit #2 — use for claimInterest directly");
+  console.log("  #2: T0 — 365d plan → matures at T0+365d; use for claimInterest directly");
 
-  console.log("\n--- Deposit #3: 90-day, 1000 USDC (past grace) ---");
+  console.log("\n--- Deposit #3: 90-day, 1000 USDC (past grace at T0+367) ---");
   const tx3 = await userSavingCore.openDeposit(0, toUSDC(1_000));
   await tx3.wait();
-  console.log("  Opened deposit #3 — use for autoRenewDeposit");
+  console.log("  #3: T0 — 90d plan → matures at T0+90d; use for autoRenewDeposit");
 
-  const targetTime = Number(block0!.timestamp) + 367 * 86400;
-  await ethers.provider.send("evm_setNextBlockTimestamp", [targetTime]);
+  // ── Advance to T0+357d, open #4 with 7-day plan ──
+  const MID = T0 + 357 * 86400;
+  console.log(`\n---------- T0+357d: open deposit #4 (past start demo) ----------`);
+  await ethers.provider.send("evm_setNextBlockTimestamp", [MID]);
   await ethers.provider.send("evm_mine", []);
-  console.log(`\nFast-forwarded to T0 + 367 days (all deposits matured)`);
-  console.log("  #0, #1, #2: 2 days past maturity → within grace");
-  console.log("  #3: 277 days past maturity → past grace");
+
+  console.log("\n--- Deposit #4: 7-day, 500 USDC (within grace at T0+367) ---");
+  const tx4 = await userSavingCore.openDeposit(3, toUSDC(500));
+  await tx4.wait();
+  console.log("  #4: T0+357d — 7d plan → matures at T0+364d; use for in-grace demo (past start, grace today)");
+
+  // ── Fast-forward to T0+367d ──
+  const END = T0 + 367 * 86400;
+  await ethers.provider.send("evm_setNextBlockTimestamp", [END]);
+  await ethers.provider.send("evm_mine", []);
+  console.log(`\n========== Fast-forwarded to T0+367d ==========`);
+  console.log("  #0, #1, #2 (365d): opened 367d ago, matured 2d ago → within 4d grace");
+  console.log("  #3          (90d): opened 367d ago, matured 277d ago → past grace");
+  console.log("  #4           (7d): opened 10d ago,  matured 3d ago  → within 4d grace (past start)");
 
   const bal = await usdcContract.balanceOf(user.address);
   console.log(`\n--- Demo Summary ---`);
   console.log(`User USDC balance: ${fmtUSDC(bal)}`);
-  for (let i = 0n; i < 4n; i++) {
+  const total = await savingCoreContract.nextDepositId();
+  for (let i = 0n; i < total; i++) {
     const d = await savingCoreContract.deposits(i);
     const plan = await savingCoreContract.plans(d.planId);
-    const now = targetTime;
-    const matured = now >= Number(d.maturityAt);
-    const graceEnd = Number(d.maturityAt) + 4 * 86400;
-    const pastGrace = now >= graceEnd;
-    console.log(`  #${i}: ${fmtUSDC(d.principal)}, ${plan.tenorDays}d plan` +
-      `, matured=${matured}, pastGrace=${pastGrace}`);
+    const openedAgo = Math.round((END - Number(d.startAt)) / 86400);
+    const maturedAgo = Math.round((END - Number(d.maturityAt)) / 86400);
+    const pastGrace = END >= Number(d.maturityAt) + 4 * 86400;
+    const status = pastGrace ? "past grace" : "in grace";
+    console.log(`  #${i}: ${fmtUSDC(d.principal)}, ${plan.tenorDays}d, opened ${openedAgo}d ago, matured ${maturedAgo}d ago → ${status}`);
   }
   console.log(`\nSuggested test flow:`);
   console.log(`  1. withdrawAtMaturity(0) — full principal + interest`);
   console.log(`  2. claimPrincipal(1) → claimInterest(1) — C1 path`);
   console.log(`  3. claimInterest(2) — Path A, pays from vault`);
   console.log(`  4. autoRenewDeposit(3) — past grace, auto-renew`);
+  console.log(`  5. withdrawAtMaturity(4) or claimPrincipal(4) — short-tenor, in grace`);
   console.log("Deploy + seed complete!");
 }
 

@@ -187,6 +187,11 @@
   color: #2563EB;
 }
 
+.deposit-card__grace-countdown {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
 /* Progress bar */
 .deposit-card__progress {
   margin-bottom: 6px;

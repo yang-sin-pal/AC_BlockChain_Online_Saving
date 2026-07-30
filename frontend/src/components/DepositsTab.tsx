@@ -37,6 +37,17 @@ const STATUS_LABELS: Record<number, { label: string; badgeClass: string; emoji: 
   4: { label: 'Đã tự gia hạn', badgeClass: 'badge-info', emoji: '🟠' },
 }
 
+function getDisplayLabel(
+  status: number,
+  matured: boolean,
+  pastGrace: boolean
+): { label: string; badgeClass: string; emoji: string } {
+  if (status !== 0) return STATUS_LABELS[status]
+  if (!matured) return { label: 'Đang tiết kiệm', badgeClass: 'badge-warning', emoji: '🟡' }
+  if (!pastGrace) return { label: 'Đã đáo hạn', badgeClass: 'badge-success', emoji: '🟢' }
+  return { label: 'Đã quá hạn', badgeClass: 'badge-danger', emoji: '🔴' }
+}
+
 const PAGE_SIZES = [10, 25, 50]
 
 export default function DepositsTab({ onNavigateToPlans }: DepositsTabProps) {
@@ -519,16 +530,19 @@ function DepositCard({
   onAction: (id: bigint, action: string) => void
   blockTimestamp: number
 }) {
-  const statusInfo = STATUS_LABELS[d.status] ?? { label: 'Không xác định', badgeClass: 'badge-neutral', emoji: '⚪' }
-  const actionKey = `${d.id.toString()}`
-  const isLoading = (action: string) => loadingAction === `${actionKey}-${action}`
-  const planLabel = plan ? `${plan.tenorDays} ngày` : '—'
-
   const now = blockTimestamp || Math.floor(Date.now() / 1000)
   const matured = now >= Number(d.maturityAt)
+  const pastGrace = now >= Number(d.maturityAt) + GRACE_PERIOD_DAYS * 86400
+  const graceEnd = Number(d.maturityAt) + GRACE_PERIOD_DAYS * 86400
+  const graceDaysLeft = Math.max(0, Math.ceil((graceEnd - now) / 86400))
   const totalDuration = Number(d.maturityAt - d.startAt)
   const elapsed = Math.min(Math.max(now - Number(d.startAt), 0), totalDuration)
   const progressPct = totalDuration > 0 ? Math.round((elapsed / totalDuration) * 100) : 0
+
+  const statusInfo = getDisplayLabel(d.status, matured, pastGrace)
+  const actionKey = `${d.id.toString()}`
+  const isLoading = (action: string) => loadingAction === `${actionKey}-${action}`
+  const planLabel = plan ? `${plan.tenorDays} ngày` : '—'
 
   return (
     <div className="deposit-card">
@@ -561,6 +575,9 @@ function DepositCard({
             <span>Đáo hạn: {formatDate(Number(d.maturityAt))}</span>
             {d.status === 0 && !matured && (
               <span className="deposit-card__countdown">{timeUntil(Number(d.maturityAt))}</span>
+            )}
+            {d.status === 0 && matured && !pastGrace && (
+              <span className="deposit-card__grace-countdown">Ân hạn còn {graceDaysLeft} ngày</span>
             )}
           </div>
 
