@@ -158,7 +158,9 @@ Bob before maturity, **Bob** can withdraw — the contract checks the current
 NFT owner, not the original depositor.
 
 **Exact location:** `SavingCore.sol:206`:
-`if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();`
+```
+if (msg.sender != ownerOf(depositId)) revert SavingCore_NotOwner();
+```
 
 The check is now extracted into an `onlyDepositOwner(depositId)` modifier (line 205–208)
 and applied to `withdrawAtMaturity`, `claimPrincipal`, `claimInterest`, `earlyWithdraw`,
@@ -187,9 +189,16 @@ At maturity, if the vault has fewer USDC tokens than the interest owed,
 even their own principal.
 
 **Exact call chain:** `SavingCore.withdrawAtMaturity` (line 245) calls
-`vaultManager.payInterest(msg.sender, interest)`. Inside `VaultManager.payInterest`
-(line 78), `usdc.safeTransfer(to, amount)` attempts to move USDC from the vault
-to the user. If the vault balance is less than `amount`, the ERC20 token reverts
+```
+vaultManager.payInterest(msg.sender, interest)
+```
+
+Inside `VaultManager.payInterest` (line 78) attempts to move USDC from the vault to the user.
+```
+usdc.safeTransfer(to, amount)
+``` 
+
+If the vault balance is less than `amount`, the ERC20 token reverts
 with `ERC20InsufficientBalance` — a standard OpenZeppelin error, not a custom one.
 
 **Problem for the user:** The principal is held by SavingCore (not the vault),
@@ -254,7 +263,9 @@ call the function and the deposit renews successfully.
 ## Q4 — Rounding Dust
 
 Interest is calculated via integer division:
-`(principal * aprBps * tenorDays) / (365 * 10_000)`.
+```
+(principal * aprBps * tenorDays) / (365 * 10_000)
+```
 Solidity truncates toward zero, so the user receives the slightly smaller
 (truncated) interest. The leftover "dust" stays in the vault — it cannot
 cause a revert or an incorrect balance. Verified by test #8 in
@@ -262,14 +273,29 @@ cause a revert or an incorrect balance. Verified by test #8 in
 truncated interest, and the vault retains the 1-unit dust.
 
 ## Q5 — Boundary Operators (maturityAt)
-
-The withdrawal check uses `block.timestamp < deposit.maturityAt` to revert
-("not yet mature"). This means at the exact `maturityAt` second, the
-condition is false and withdrawal is allowed — the `>=` semantics. This is
+At the exact second of maturityAt, is a withdrawal "early" or "at maturity"? Maturity.
+The withdrawal check uses `block.timestamp < deposit.maturityAt` to revert ("not yet mature"). 
+`SavingCore.withdrawAtMaturity` (line 257)
+```
+if (block.timestamp < deposit.maturityAt) revert SavingCore_NotYetMature();
+```
+This means at the exact `maturityAt` second, the
+condition is false and **withdrawal is allowed** — the `>=` semantics. This is
 justified because at the precise second the term ends, the user has fulfilled
 the contract and should receive principal + interest without penalty.
 Verified by test #1 in `withdrawAtMaturity`: `evm_setNextBlockTimestamp`
 set to exactly `maturityAt`, withdrawal succeeds.
+
+At the exact end of the grace period, can the user still manually renew? No.
+
+`SavingCore.renewDeposit` (line 404)
+```
+if (block.timestamp >= uint256(oldDeposit.maturityAt) + personalGracePeriod * 86400) revert SavingCore_PastGracePeriod();
+```
+We use `>=`, so user will get revert if they try to manually renew at this time.
+
+Normally, at the exact end of the grace period, a bot will trigger auto renew (using the exact APR as the old deposit).
+
 
 ## Q6 — Disabled Plan with Active Deposits
 
