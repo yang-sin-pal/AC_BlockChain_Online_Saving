@@ -32,12 +32,12 @@ describe("VaultManager — withdrawVault", function () {
     ).to.be.revertedWithCustomError(vaultManager, "OwnableUnauthorizedAccount");
   });
 
-  it("#6 — owner withdraws more than vault balance → reverts with VaultManager_InsufficientBalance", async function () {
+  it("#6 — owner withdraws more than available (vault balance minus owed interest) → reverts with VaultManager_ExceedsAvailable", async function () {
     const { vaultManager, owner } = await loadFixture(fundVaultFixture);
 
     await expect(
       vaultManager.connect(owner).withdrawVault(toUSDC(2000))
-    ).to.be.revertedWithCustomError(vaultManager, "VaultManager_InsufficientBalance");
+    ).to.be.revertedWithCustomError(vaultManager, "VaultManager_ExceedsAvailable");
   });
 
   it("#7 — owner withdraws exact vault balance (zero dust left) → succeeds, balance = 0", async function () {

@@ -10,6 +10,7 @@ Decentralised fixed-term saving system — Solidity backend (Hardhat) + React/Vi
 # From project root
 npx hardhat compile               # compiles + auto-copies ABIs to frontend/src/abi/
 npx hardhat test                  # 158 tests — npm test (root) is a placeholder
+npx hardhat coverage              # Solidity test coverage report
 npx hardhat node                  # local chain on :8545
 npx hardhat run scripts/deploy.ts --network localhost
 npx hardhat run scripts/seed.ts --network localhost
@@ -61,7 +62,9 @@ contracts/
 ├── core/
 │   ├── SavingCore.sol       # plans, deposits, withdraw, renew, ERC721 mint, C1
 │   └── VaultManager.sol     # vault fund/withdraw, payInterest, feeReceiver
-├── interfaces/ISavingCore.sol
+├── interfaces/
+│   ├── ISavingCore.sol
+│   └── IVaultManager.sol
 ├── libraries/
 │   ├── Errors.sol           # custom errors only — no require("string")
 │   ├── Events.sol           # past-tense naming (DepositOpened)
@@ -82,6 +85,7 @@ contracts/
 test/
 ├── helpers/constants.ts     # personal variant values shared across all tests
 ├── helpers/fixtures.ts      # loadFixture wrappers (deployDeposit, deferredDeposit, etc.)
+├── helpers/utils.ts         # toUSDC() and other test utilities
 ├── unit/
 │   ├── SavingCore/          # 4 files: admin, earlyWithdraw, openDeposit, pause
 │   └── VaultManager/        # 8 files: fund, pause, payInterest, reentrancy, etc.
@@ -135,6 +139,7 @@ frontend/src/
 - ABI copy runs automatically as a Hardhat compile hook (`scripts/copy-abis.ts`)
 - `autoRenewDeposit` has no owner check — anyone (bot) can call. Intentional.
 - `payInterest` is `onlySavingCore` — use `impersonateAccount` or direct contract call in tests
+- `withdrawVault` is C2-guarded — drains vault via `impersonateAccount` + `payInterest` in tests, not via `withdrawVault`
 - No `.env` committed — Hardhat local chain only. `.env` needed only for Sepolia
 - `burn` was removed — no longer exists on any contract or frontend
 

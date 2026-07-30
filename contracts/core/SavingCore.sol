@@ -35,6 +35,9 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
     // depositId => unpaid interest (C1: principal is always safe)
     mapping(uint256 => uint256) public pendingInterest;
 
+    // C2 solvency guard: total interest owed across all active & pending deposits
+    uint256 public totalOwedInterest;
+
     constructor(address _usdc, address _vaultManager)
         ERC721("Term Deposit Certificate", "TDC")
         Ownable(msg.sender)
@@ -152,6 +155,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         });
 
         _safeMint(to, depositId);
+
+        totalOwedInterest += InterestLib.calculateInterest(principal, aprBps, tenorDays);
         return depositId;
     }
 
@@ -189,10 +194,11 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
             } else {
                 interest = _calcInterest(depositId);
             }
-            if (interest > 0) {
-                vaultManager.payInterest(address(this), interest);
-            }
-            newPrincipal += interest;
+        if (interest > 0) {
+            totalOwedInterest -= interest;
+            vaultManager.payInterest(address(this), interest);
+        }
+        newPrincipal += interest;
         }
 
         if (newPrincipal == 0) revert SavingCore_AlreadyWithdrawn();
@@ -253,6 +259,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
 
         uint256 principal = deposit.principal;
         uint256 interest = _calcInterest(depositId);
+
+        totalOwedInterest -= interest;
 
         // CEI: update state BEFORE external calls (code-convention.md §7)
         deposits[depositId].status = Status.Withdrawn;
@@ -335,6 +343,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
             }
         }
 
+        totalOwedInterest -= payAmount;
+
         // Interactions
         if (payAmount > 0) {
             vaultManager.payInterest(msg.sender, payAmount);
@@ -356,6 +366,8 @@ contract SavingCore is ISavingCore, ERC721, Ownable2Step, ReentrancyGuard, Pausa
         uint256 principal = deposit.principal;
         uint256 penalty = (principal * deposit.penaltyBpsAtOpen) / 10_000;
         uint256 userAmount = principal - penalty;
+
+        totalOwedInterest -= _calcInterest(depositId);
 
         // CEI: update state before external calls
         deposit.status = Status.Withdrawn;

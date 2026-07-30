@@ -60,7 +60,7 @@
   },
   {
     "inputs": [],
-    "name": "VaultManager_InsufficientBalance",
+    "name": "VaultManager_ExceedsAvailable",
     "type": "error"
   },
   {

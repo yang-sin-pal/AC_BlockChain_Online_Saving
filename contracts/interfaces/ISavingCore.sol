@@ -98,4 +98,7 @@ interface ISavingCore {
     /// @return newDepositId ID of the newly created deposit.
     function autoRenewDeposit(uint256 depositId) external returns (uint256 newDepositId);
 
+    /// @notice Total interest owed to all active and PrincipalClaimed deposits (C2 solvency guard).
+    /// @return Total interest obligation in USDC units.
+    function totalOwedInterest() external view returns (uint256);
 }

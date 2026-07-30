@@ -269,17 +269,17 @@
 
 > Frontend development (Vite + React + TS) + deployment + demo video. C2 skipped.
 
-- [ ] Task 1: Deployment scripts (deploy.ts + seed.ts + hardhat config)
-- [ ] Task 2: Frontend scaffold (Vite + React + TS + ethers)
-- [ ] Task 3: Core utilities (format, networks, hooks)
-- [ ] Task 4: Layout + header + ConnectWallet
-- [ ] Task 5: PlansTab (view plans + open deposit)
-- [ ] Task 6: DepositsTab (view deposits + withdraw/renew/C1 flows)
-- [ ] Task 7: AdminTab (fund vault + create plan + pause)
-- [ ] Task 8: Polish + error handling + responsive
-- [ ] Task 9: Frontend report (`docs/reports/Frontend-Report.md`)
+- [x] Task 1: Deployment scripts (deploy.ts + seed.ts + hardhat config)
+- [x] Task 2: Frontend scaffold (Vite + React + TS + ethers)
+- [x] Task 3: Core utilities (format, networks, hooks)
+- [x] Task 4: Layout + header + ConnectWallet
+- [x] Task 5: PlansTab (view plans + open deposit)
+- [x] Task 6: DepositsTab (view deposits + withdraw/renew/C1 flows)
+- [x] Task 7: AdminTab (fund vault + create plan + pause)
+- [x] Task 8: Polish + error handling + responsive
+- [x] Task 9: Frontend report (`docs/reports/Frontend-Report.md`)
 - [ ] Record demo video (3–5 min)
-- [ ] Final `npx hardhat compile` + `npx hardhat test` + `npx hardhat coverage`
+- [x] Final `npx hardhat compile` + `npx hardhat test` + `npx hardhat coverage`
 
 ---
 

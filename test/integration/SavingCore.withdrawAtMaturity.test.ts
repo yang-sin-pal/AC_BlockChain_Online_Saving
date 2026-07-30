@@ -112,9 +112,14 @@ describe("SavingCore — withdrawAtMaturity", function () {
   it("#6 — vault insufficient → reverts", async function () {
     const { savingCore, owner, user, vaultManager } = await loadFixture(fixtureWithDeposit);
 
-    // Owner drains vault to 100 units (less than interest owed)
+    // Impersonate SavingCore (needs ETH for gas) to drain vault via payInterest
     const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal - 100n);
+    const scAddr = await savingCore.getAddress();
+    await ethers.provider.send("hardhat_setBalance", [scAddr, "0x10000000000000000"]);
+    await ethers.provider.send("hardhat_impersonateAccount", [scAddr]);
+    const scSigner = await ethers.getSigner(scAddr);
+    await vaultManager.connect(scSigner).payInterest(await owner.getAddress(), vaultBal - 100n);
+    await ethers.provider.send("hardhat_stopImpersonatingAccount", [scAddr]);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 
@@ -131,9 +136,14 @@ describe("SavingCore — withdrawAtMaturity", function () {
     const deposit = await savingCore.deposits(0);
     const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
 
-    // Leave exactly interest - 1 in vault
+    // Impersonate SavingCore (needs ETH for gas) to drain vault, leave exactly interest - 1
     const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal - (expectedInterest - 1n));
+    const scAddr = await savingCore.getAddress();
+    await ethers.provider.send("hardhat_setBalance", [scAddr, "0x10000000000000000"]);
+    await ethers.provider.send("hardhat_impersonateAccount", [scAddr]);
+    const scSigner = await ethers.getSigner(scAddr);
+    await vaultManager.connect(scSigner).payInterest(await owner.getAddress(), vaultBal - (expectedInterest - 1n));
+    await ethers.provider.send("hardhat_stopImpersonatingAccount", [scAddr]);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 

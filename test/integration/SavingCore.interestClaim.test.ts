@@ -191,10 +191,15 @@ describe("SavingCore — claimInterest", function () {
     const deposit = await savingCore.deposits(0);
     const expectedInterest = calculateExpectedInterest(deposit.principal, DEFAULT_APR, DEFAULT_TENOR);
 
-    // Drain vault to leave only half the interest
+    // Impersonate SavingCore (needs ETH for gas) to drain vault, leave only half the interest
     const halfInterest = expectedInterest / 2n;
     const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal - halfInterest);
+    const scAddr = await savingCore.getAddress();
+    await ethers.provider.send("hardhat_setBalance", [scAddr, "0x10000000000000000"]);
+    await ethers.provider.send("hardhat_impersonateAccount", [scAddr]);
+    const scSigner = await ethers.getSigner(scAddr);
+    await vaultManager.connect(scSigner).payInterest(await owner.getAddress(), vaultBal - halfInterest);
+    await ethers.provider.send("hardhat_stopImpersonatingAccount", [scAddr]);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 

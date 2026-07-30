@@ -1,23 +1,9 @@
 import { Contract } from 'ethers'
 
 export async function calcTotalInterestObligations(
-  savingCore: Contract,
-  nextDepositId: bigint
+  savingCore: Contract
 ): Promise<bigint> {
-  let total = 0n
-  for (let i = 0n; i < nextDepositId; i++) {
-    const deposit = await savingCore.deposits(i)
-    const status = Number(deposit.status)
-    if (status === 0) {
-      const plan = await savingCore.plans(deposit.planId)
-      const interest = (deposit.principal * BigInt(deposit.aprBpsAtOpen) * BigInt(plan.tenorDays)) / (365n * 10_000n)
-      total += interest
-    } else if (status === 2) {
-      const pending = await savingCore.pendingInterest(i)
-      total += pending
-    }
-  }
-  return total
+  return savingCore.totalOwedInterest()
 }
 
 export async function calcActivePrincipal(

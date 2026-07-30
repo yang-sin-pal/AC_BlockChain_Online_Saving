@@ -349,7 +349,36 @@ receives their principal even if the admin key is compromised.
 
 ## C2 — Solvency Guard
 
-_To be implemented._
+**Problem:** The base spec lets the admin drain the vault at any time via
+`withdrawVault`. Deposits that were safe yesterday can become unpayable today
+— the admin can withdraw money already "promised" as interest to active
+deposits.
+
+**Solution:** Added `totalOwedInterest` tracking in `SavingCore` — a `uint256`
+updated on every deposit action. `withdrawVault` in `VaultManager` now checks
+this value: only `balance - totalOwedInterest` is withdrawable, protecting
+the interest buffer.
+
+Functions that update `totalOwedInterest`:
+- `_createDeposit` — increments by the deposit's calculated interest
+- `withdrawAtMaturity` — decrements (interest paid from vault)
+- `earlyWithdraw` — decrements (interest forfeited, no longer owed)
+- `claimInterest` — decrements by the paid portion (partial payment supported)
+- `_collectRenewalPrincipal` — decrements old interest (compounded into new deposit)
+
+`claimPrincipal` intentionally does **not** decrement — the interest moves to
+`pendingInterest` and is still owed by the vault. The accounting is safe
+because `withdrawAtMaturity` and `earlyWithdraw` are atomic (any revert rolls
+back the decrement), and `_calcInterest` is deterministic per depositId
+(reads only immutable snapshots).
+
+**Frontend:** `AdminTab.tsx` caps the withdraw amount at `surplus` (vault
+balance minus total owed), enforcing the same guard in the UI.
+
+**Verified by:** 9 tests in `SavingCore.c2.test.ts` covering success, revert
+when over surplus, per-function accounting, and a multi-step chain (deposit →
+`claimPrincipal` → partial `claimInterest` → `fundVault` → full
+`claimInterest` → `totalOwedInterest = 0`).
 
 
 

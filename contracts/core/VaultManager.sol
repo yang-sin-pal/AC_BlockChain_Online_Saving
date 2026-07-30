@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/IVaultManager.sol";
+import "../interfaces/ISavingCore.sol";
 import "../libraries/Errors.sol";
 import "../libraries/Events.sol";
 
@@ -46,10 +47,13 @@ contract VaultManager is IVaultManager, Ownable2Step, ReentrancyGuard, Pausable 
         emit Events.VaultFunded(msg.sender, amount);
     }
 
-    /// @notice Admin withdraws excess funds from the vault.
+    /// @notice Admin withdraws excess funds from the vault (respects C2 solvency guard).
     /// @param amount Amount of USDC to withdraw from the vault.
     function withdrawVault(uint256 amount) external nonReentrant onlyOwner whenNotPaused {
-        if (amount > usdc.balanceOf(address(this))) revert VaultManager_InsufficientBalance();
+        uint256 balance = usdc.balanceOf(address(this));
+        uint256 owed = ISavingCore(savingCore).totalOwedInterest();
+        uint256 available = balance > owed ? balance - owed : 0;
+        if (amount > available) revert VaultManager_ExceedsAvailable();
         usdc.safeTransfer(msg.sender, amount);
         emit Events.VaultWithdrawn(msg.sender, amount);
     }

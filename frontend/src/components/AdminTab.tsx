@@ -91,7 +91,7 @@ export default function AdminTab() {
       setVmPaused(vmp)
 
       const [obligations, activeP] = await Promise.all([
-        calcTotalInterestObligations(savingCore, td),
+        calcTotalInterestObligations(savingCore),
         calcActivePrincipal(savingCore, td),
       ])
       setTotalObligations(obligations)
@@ -155,7 +155,7 @@ export default function AdminTab() {
     : ''
 
   const fundError = fundAmount && fundAmountParsed <= 0n ? 'Số tiền phải lớn hơn 0' : ''
-  const withdrawError = withdrawAmount && (withdrawParsed <= 0n || withdrawParsed > vaultBalance)
+  const withdrawError = withdrawAmount && (withdrawParsed <= 0n || withdrawParsed > surplus)
     ? withdrawParsed <= 0n ? 'Số tiền phải lớn hơn 0' : 'Số tiền vượt quá số dư quỹ'
     : ''
   const feeReceiverError = newFeeReceiver && !/^0x[0-9a-fA-F]{40}$/.test(newFeeReceiver)
@@ -492,7 +492,7 @@ export default function AdminTab() {
           <div className="admin-form-actions">
             <button
               className="btn btn-danger"
-              disabled={withdrawParsed <= 0n || withdrawParsed > vaultBalance || withdrawLoading || !!withdrawError}
+              disabled={withdrawParsed <= 0n || withdrawParsed > surplus || withdrawLoading || !!withdrawError}
               onClick={handleWithdrawVault}
             >
               {withdrawLoading ? 'Đang rút tiền...' : 'Rút tiền'}

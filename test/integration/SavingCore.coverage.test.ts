@@ -50,9 +50,14 @@ describe("SavingCore — branch coverage gaps", function () {
     const { savingCore, owner, user, vaultManager, usdc } =
       await loadFixture(fixtureWithDeposit);
 
-    // Drain vault completely
+    // Impersonate SavingCore (needs ETH for gas) to drain vault completely
     const vaultBal = await vaultManager.vaultBalance();
-    await vaultManager.connect(owner).withdrawVault(vaultBal);
+    const scAddr = await savingCore.getAddress();
+    await ethers.provider.send("hardhat_setBalance", [scAddr, "0x10000000000000000"]);
+    await ethers.provider.send("hardhat_impersonateAccount", [scAddr]);
+    const scSigner = await ethers.getSigner(scAddr);
+    await vaultManager.connect(scSigner).payInterest(await owner.getAddress(), vaultBal);
+    await ethers.provider.send("hardhat_stopImpersonatingAccount", [scAddr]);
 
     await increaseTime(DEFAULT_TENOR * SECONDS_PER_DAY);
 

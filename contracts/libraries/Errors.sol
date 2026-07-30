@@ -5,6 +5,7 @@ error VaultManager_OnlySavingCore();
 error VaultManager_InsufficientBalance();
 error VaultManager_ZeroAmount();
 error VaultManager_SavingCoreAlreadySet();
+error VaultManager_ExceedsAvailable();
 
 error SavingCore_PlanNotFound();
 error SavingCore_PlanNotEnabled();
