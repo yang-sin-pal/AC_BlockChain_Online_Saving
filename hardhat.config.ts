@@ -11,7 +11,10 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    hardhat: { chainId: 31337 },
+    hardhat: {
+      chainId: 31337,
+      initialDate: "2025-07-01T00:00:00Z",
+    },
     localhost: {
       url: "http://127.0.0.1:8545",
       chainId: 31337,

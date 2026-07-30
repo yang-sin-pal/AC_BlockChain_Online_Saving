@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "test": "hardhat test",
-    "deploy-seed": "npx hardhat run scripts/deploy-seed.ts --network localhost",
     "program": "concurrently -k -n SmartContract,Frontend -c cyan,green \"npx hardhat node\" \"wait-on tcp:8545 && npx hardhat run scripts/deploy-seed.ts --network localhost && cd frontend && npm run dev\""
   },
   "keywords": [],
