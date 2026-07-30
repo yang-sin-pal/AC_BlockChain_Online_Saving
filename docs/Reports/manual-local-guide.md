@@ -6,9 +6,7 @@
 npx hardhat node
 
 # 3. Re-deploy + seed
-npx hardhat run scripts/deploy.ts --network localhost
-npx hardhat run scripts/seed.ts --network localhost
-npx hardhat run scripts/seed-demo.ts --network localhost
+npm run deploy-seed
 
 ## 6. Start Frontend
 
@@ -40,42 +38,27 @@ Node starts at `http://127.0.0.1:8545`. Keeps running in foreground.
 
 ---
 
-## 3. Deploy Contracts
-
-In a **new terminal** (node must be running):
+## 3. Deploy + Seed (One Command)
 
 ```bash
-npx hardhat run scripts/deploy.ts --network localhost
+npm run deploy-seed
 ```
 
-Deploys in order:
-1. MockUSDC → VaultManager(usdc) → SavingCore(usdc, vaultManager)
-2. Wires `VaultManager.setSavingCore(SavingCore)` — one-time call
-3. Sets fee receiver to deployer
-4. Saves artifact to `deployments/localhost.json` + `frontend/src/config/contracts.json`
-
----
-
-## 4. Seed Demo Data
+Or equivalently:
 
 ```bash
-npx hardhat run scripts/seed.ts --network localhost
+npx hardhat run scripts/deploy-seed.ts --network localhost
 ```
 
-Creates:
-- 3 saving plans: 90d/4%, 180d/4%, 365d/6%
-- 100,000 USDC funded into vault (interest pool)
-- 10,000 USDC in deployer wallet (for demo deposits)
-
----
-
-## 5. (Optional) AutoRenew Demo Data
-
-Creates time-shifted deposits that have already matured and auto-renewed:
-
-```bash
-npx hardhat run scripts/seed-demo.ts --network localhost
-```
+This single command:
+- Deploys MockUSDC → VaultManager → SavingCore
+- Wires `VaultManager.setSavingCore(SavingCore)` + sets fee receiver
+- Saves artifact to `deployments/localhost.json` + `frontend/src/config/contracts.json`
+- Creates 3 saving plans: 90d/4%, 180d/4%, 365d/6%
+- Funds vault with 100,000 USDC (interest pool)
+- Mints 10,000 USDC to deployer wallet
+- Opens 4 demo deposits for user account (`0x7099...79C8`)
+- Fast-forwards time +367 days so all deposits are past maturity (within grace for 365d deposits, past grace for 90d deposit)
 
 See §Expected Output for terminal output.
 
@@ -200,11 +183,11 @@ Private key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 
 ### 2e. AutoRenew Button (Condition: past grace period `≥ maturityAt + 4 days`)
 
-Requires `seed-demo.ts` to have been run (creates time-shifted deposits).
+Requires `seed.ts` to have been run (creates time-shifted deposits).
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 1 | Run `seed-demo.ts` then refresh frontend | Deposit #1 & #2 show 🟠 "Đã tự gia hạn" badge |
+| 1 | Run `seed.ts` then refresh frontend | Deposit #3 shows 🟠 "Quá hạn ân hạn" badge |
 | 2 | Find Deposit #3 (compounded, Active, matured, past grace) | "Tự động gia hạn" outline button visible |
 | 3 | Click button | MetaMask → confirm |
 | 4 | After confirm | Deposit #3 → AutoRenewed. New deposit created with compounded principal |
@@ -326,33 +309,61 @@ Addresses reset to these values every time you restart `npx hardhat node` and re
 npx hardhat node
 
 # 3. Re-deploy + seed
-npx hardhat run scripts/deploy.ts --network localhost
-npx hardhat run scripts/seed.ts --network localhost
+npm run deploy-seed
 ```
 
 ---
 
-## Reference: Expected Output (seed-demo.ts)
+## Reference: Expected Output (deploy-seed.ts)
 
 ```
-Found 3 plans. Creating demo deposits...
---- Deposit #1: 90-day plan, auto-renewed ---
-Opened deposit #1: 1,000 USDC, 90-day plan
-  Fast-forwarded 94 days → past maturity + grace
-  ✅ Deposit #1 auto-renewed → Deposit #2
-  New deposit #2 : 1,010 USDC, status: 0 (Active)
---- Deposit #2: auto-renew again (compounding) ---
-  Fast-forwarded another 94 days
-  ✅ Deposit #2 auto-renewed → Deposit #3
-  New deposit #3 : 1,020.1 USDC (compounded principal + interest)
---- Deposit #3: Active deposit for manual demo ---
-Opened deposit #4: 500 USDC, 180-day plan (Active)
+Deploying with account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Plan created: 90d, APR 4%, min 100 USDC, max 50000 USDC
+Plan created: 180d, APR 4%, min 100 USDC, max 50000 USDC
+Plan created: 365d, APR 6%, min 500 USDC, max 100000 USDC
+Minted 100,000 USDC to deployer
+Approved VaultManager for 100,000 USDC
+Vault funded with 100,000 USDC
+Minted 10,000 USDC to deployer (demo wallet)
+
+--- Seed Summary (Infra) ---
+Plans created: 3
+Vault balance: 100000 USDC
+Deployer USDC balance: 10000 USDC
+
+========== Creating Demo Deposits ==========
+Demo user: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Minted and approved USDC for user
+
+--- Deposit #0: 365-day, 1000 USDC (within grace) ---
+  Opened deposit #0 — use for withdrawAtMaturity
+
+--- Deposit #1: 365-day, 1000 USDC (within grace) ---
+  Opened deposit #1 — use for claimPrincipal → claimInterest
+
+--- Deposit #2: 365-day, 500 USDC (within grace) ---
+  Opened deposit #2 — use for claimInterest directly
+
+--- Deposit #3: 90-day, 1000 USDC (past grace) ---
+  Opened deposit #3 — use for autoRenewDeposit
+
+Fast-forwarded to T0 + 367 days (all deposits matured)
+  #0, #1, #2: 2 days past maturity → within grace
+  #3: 277 days past maturity → past grace
+
 --- Demo Summary ---
-Total deposits: 4
-  #1: AutoRenewed (status=4)
-  #2: AutoRenewed (status=4)
-  #3: Active (status=0) — compounded principal
-  #4: Active (status=0) — 500 USDC, 180-day plan (manual demo)
+User USDC balance: 3,500 USDC
+  #0: 1,000 USDC, 365d plan, matured=true, pastGrace=false
+  #1: 1,000 USDC, 365d plan, matured=true, pastGrace=false
+  #2: 500 USDC, 365d plan, matured=true, pastGrace=false
+  #3: 1,000 USDC, 90d plan, matured=true, pastGrace=true
+
+Suggested test flow:
+  1. withdrawAtMaturity(0) — full principal + interest
+  2. claimPrincipal(1) → claimInterest(1) — C1 path
+  3. claimInterest(2) — Path A, pays from vault
+  4. autoRenewDeposit(3) — past grace, auto-renew
+Seed complete!
 ```
 
 ---
@@ -364,6 +375,6 @@ Total deposits: 4
 | `ECONNREFUSED 127.0.0.1:8545` | Hardhat node not running — start it first |
 | `EADDRINUSE: port 8545` | Another process using port — stop it or use different port |
 | Seed fails with `CALL_REVERT` | Deploy not run yet or artifact missing — re-run deploy first |
-| Stale data after restart | Node resets state on restart — re-run deploy + seed |
+| Stale data after restart | Node resets state on restart — re-run `npm run deploy-seed` |
 | MetaMask "Nonce too high" | Settings → Advanced → Clear activity tab data |
 | MetaMask "Already processing" error | Wait for pending tx or restart MetaMask |

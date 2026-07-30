@@ -12,8 +12,7 @@ npx hardhat compile               # compiles + auto-copies ABIs to frontend/src/
 npx hardhat test                  # 158 tests — npm test (root) is a placeholder
 npx hardhat coverage              # Solidity test coverage report
 npx hardhat node                  # local chain on :8545
-npx hardhat run scripts/deploy.ts --network localhost
-npx hardhat run scripts/seed.ts --network localhost
+npm run deploy-seed               # deploy + seed in one command
 
 # From frontend/
 cd frontend && npm run dev        # dev server on :3000
@@ -129,8 +128,7 @@ frontend/src/
 ## Deployment Flow
 
 1. `npx hardhat node` — start local chain
-2. `npx hardhat run scripts/deploy.ts --network localhost` — deploys MockUSDC → VaultManager → SavingCore, wires `setSavingCore`, sets feeReceiver. Saves to `deployments/localhost.json` + `frontend/src/config/contracts.json`.
-3. `npx hardhat run scripts/seed.ts --network localhost` — creates 3 plans, funds vault with 100k USDC, mints 10k USDC to deployer.
+2. `npm run deploy-seed` — deploys MockUSDC → VaultManager → SavingCore, wires `setSavingCore`, sets feeReceiver. Saves to `deployments/localhost.json` + `frontend/src/config/contracts.json`. Then creates 3 plans, funds vault with 100k USDC, mints 10k USDC to deployer, opens 4 demo deposits for user account, and fast-forwards +367 days.
 
 ## Gotchas
 

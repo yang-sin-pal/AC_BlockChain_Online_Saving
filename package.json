@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "deploy-seed": "npx hardhat run scripts/deploy-seed.ts --network localhost"
   },
   "keywords": [],
   "author": "",
