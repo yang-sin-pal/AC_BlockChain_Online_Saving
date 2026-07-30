@@ -11,11 +11,11 @@ Decentralised fixed-term saving system — Solidity backend (Hardhat) + React/Vi
 npx hardhat compile               # compiles + auto-copies ABIs to frontend/src/abi/
 npx hardhat test                  # 158 tests — npm test (root) is a placeholder
 npx hardhat coverage              # Solidity test coverage report
-npx hardhat node                  # local chain on :8545
-npm run deploy-seed               # deploy + seed in one command
+npm run deploy-seed               # deploy + seed (node must be running)
+npm run program                   # start node + deploy-seed + frontend (one command)
 
 # From frontend/
-cd frontend && npm run dev        # dev server on :3000
+cd frontend && npm run dev        # dev server on :3000 (standalone)
 cd frontend && npm run build      # tsc -b && vite build
 cd frontend && npm run lint       # oxlint (NOT eslint)
 ```
@@ -127,8 +127,10 @@ frontend/src/
 
 ## Deployment Flow
 
-1. `npx hardhat node` — start local chain
-2. `npm run deploy-seed` — deploys MockUSDC → VaultManager → SavingCore, wires `setSavingCore`, sets feeReceiver. Saves to `deployments/localhost.json` + `frontend/src/config/contracts.json`. Then creates 3 plans, funds vault with 100k USDC, mints 10k USDC to deployer, opens 4 demo deposits for user account, and fast-forwards +367 days.
+1. `npm run program` (root) — starts hardhat node + deploy-seed + frontend, all in one terminal.
+   Or manually:
+   - `npx hardhat node` — start local chain
+   - `npm run deploy-seed` — deploy + seed
 
 ## Gotchas
 

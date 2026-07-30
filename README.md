@@ -47,7 +47,7 @@ The project consists of three main contracts.
 | Contract | Responsibility |
 |----------|----------------|
 | MockUSDC | ERC20 token used for testing |
-| SavingCore | Main business logic |
+| SavingCore | Main business logic, hold user principal |
 | VaultManager | Holds funds and pays interest |
 
 More details can be found in:
@@ -66,7 +66,7 @@ See:
 
 ---
 
-# 4. Personal Variant
+# 4. Personal Variant (for AppCyclone mentor)
 
 **Student ID:** `...38`
 
@@ -94,6 +94,23 @@ npm install
 ```bash
 npx hardhat compile
 ```
+
+## Quick Start (one command)
+
+```bash
+npm run program
+```
+
+> This is a custom script defined in `package.json` — not a built-in npm command. It uses `concurrently` + `wait-on` to orchestrate the 3 services.
+
+This single command starts everything in one terminal:
+1. **Hardhat node** — local Ethereum blockchain on `:8545`
+2. **Deploy + seed** — deploys contracts and populates demo data
+3. **Frontend** — Vite dev server on `http://localhost:3000`
+
+It replaces the manual 3-terminal setup (`npx hardhat node` + `npm run deploy-seed` + `cd frontend && npm run dev`). Output is labeled with `[SmartContract]` and `[Frontend]` prefixes.
+
+---
 
 ## Run tests
 
@@ -132,7 +149,7 @@ Contract APIs are documented in:
 
 ---
 
-# 8. Design Decisions
+# 8. Design Decisions (for AppCyclone mentor)
 
 ## Q1 — Transferable Certificate
 
@@ -320,7 +337,7 @@ Topics include:
 
 ---
 
-# 10. Bonus Features
+# 10. Bonus Features (for AppCylone mentor)
 
 ## C1 — Principal is always safe
 

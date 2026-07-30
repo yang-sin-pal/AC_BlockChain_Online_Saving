@@ -2,17 +2,11 @@
 
 > For localhost demo on Hardhat node (chainId 31337).
 
-# 2. Restart
-npx hardhat node
+# Quick Start (one command)
+npm run program
 
-# 3. Re-deploy + seed
-npm run deploy-seed
-
-## 6. Start Frontend
-
-```bash
-cd frontend && npm run dev
-```
+# Restart (Ctrl+C, then same command)
+npm run program
 
 npx hardhat console --network localhost
 > const usdc = await ethers.getContractAt("MockUSDC", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
@@ -28,47 +22,33 @@ npx hardhat compile  # generate typechain-types (if not already done)
 
 ---
 
-## 2. Start Local Blockchain
+## 2. Start Everything (One Command)
 
 ```bash
-npx hardhat node
+npm run program
 ```
 
-Node starts at `http://127.0.0.1:8545`. Keeps running in foreground.
+This starts **hardhat node** + **deploy-seed** + **frontend dev server** in a single terminal, with labeled output:
 
----
-
-## 3. Deploy + Seed (One Command)
-
-```bash
-npm run deploy-seed
+```
+[NODE]  hardhat v2.26.0
+[NODE]  Started HTTP and WebSocket on 127.0.0.1:8545
+[APP]   Deploying with account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+[APP]   MockUSDC deployed at 0x5FbDB2315678afecb367f032d93F642f64180aa3
+[APP]   ...
+[APP]   Seed complete!
+[APP]   Vite server running on http://localhost:3000
 ```
 
-Or equivalently:
+See §Expected Output for full terminal output.
 
-```bash
-npx hardhat run scripts/deploy-seed.ts --network localhost
-```
+### Manual alternative (3 separate terminals)
 
-This single command:
-- Deploys MockUSDC → VaultManager → SavingCore
-- Wires `VaultManager.setSavingCore(SavingCore)` + sets fee receiver
-- Saves artifact to `deployments/localhost.json` + `frontend/src/config/contracts.json`
-- Creates 3 saving plans: 90d/4%, 180d/4%, 365d/6%
-- Funds vault with 100,000 USDC (interest pool)
-- Mints 10,000 USDC to deployer wallet
-- Opens 4 demo deposits for user account (`0x7099...79C8`)
-- Fast-forwards time +367 days so all deposits are past maturity (within grace for 365d deposits, past grace for 90d deposit)
-
-See §Expected Output for terminal output.
-
----
-
-## 6. Start Frontend
-
-```bash
-cd frontend && npm run dev
-```
+| Terminal | Command |
+|----------|---------|
+| 1 | `npx hardhat node` |
+| 2 | `npm run deploy-seed` |
+| 3 | `cd frontend && npm run dev` |
 
 ---
 
@@ -304,12 +284,8 @@ Addresses reset to these values every time you restart `npx hardhat node` and re
 ## Reference: Reset / Re-deploy
 
 ```bash
-# 1. Stop hardhat node (Ctrl+C)
-# 2. Restart
-npx hardhat node
-
-# 3. Re-deploy + seed
-npm run deploy-seed
+# Re-deploy + seed + frontend (all in one)
+npm run program
 ```
 
 ---
