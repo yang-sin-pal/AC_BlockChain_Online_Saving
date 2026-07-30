@@ -130,6 +130,10 @@ async function main() {
   const block0 = await ethers.provider.getBlock("latest");
   const T0 = Number(block0!.timestamp);
 
+  // Helper: mine a block at a given timestamp (QUANTITY = hex string per JSON-RPC spec)
+  const mineAt = (ts: number) =>
+    ethers.provider.send("evm_mine", [{ timestamp: "0x" + ts.toString(16) }]);
+
   console.log(`\n========== T0 = ${new Date(T0 * 1000).toLocaleDateString('en-GB')} ==========`);
   console.log("Opening deposits at realistic past dates via manual mining...");
 
@@ -139,7 +143,7 @@ async function main() {
   // ── Deposit #0: 365-day, 1,000 USDC (opened 1 year ago → in grace today) ──
   console.log("\n--- Deposit #0: 365-day, 1000 USDC ---");
   const tx0 = await userSavingCore.openDeposit(2, toUSDC(1_000));
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 - 367 * 86400 }]);
+  await mineAt(T0 - 367 * 86400);
   await tx0.wait();
   console.log("  Opened at T0-367d (1 year ago), 365d plan → matures T0-2d");
   console.log("  Today (T0): 2 days past maturity → within grace");
@@ -147,21 +151,21 @@ async function main() {
   // ── Deposit #1: 365-day, 1,000 USDC ──
   console.log("\n--- Deposit #1: 365-day, 1000 USDC ---");
   const tx1 = await userSavingCore.openDeposit(2, toUSDC(1_000));
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 - 367 * 86400 + 12 }]);
+  await mineAt(T0 - 367 * 86400 + 12);
   await tx1.wait();
   console.log("  Opened at T0-367d+12s, 365d plan");
 
   // ── Deposit #2: 365-day, 500 USDC ──
   console.log("\n--- Deposit #2: 365-day, 500 USDC ---");
   const tx2 = await userSavingCore.openDeposit(2, toUSDC(500));
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 - 367 * 86400 + 24 }]);
+  await mineAt(T0 - 367 * 86400 + 24);
   await tx2.wait();
   console.log("  Opened at T0-367d+24s, 365d plan");
 
   // ── Deposit #3: 90-day, 1,000 USDC (opened 3 months ago → past grace today) ──
   console.log("\n--- Deposit #3: 90-day, 1000 USDC ---");
   const tx3 = await userSavingCore.openDeposit(0, toUSDC(1_000));
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 - 95 * 86400 }]);
+  await mineAt(T0 - 95 * 86400);
   await tx3.wait();
   console.log("  Opened at T0-95d (~3 months ago), 90d plan → matures T0-5d");
   console.log("  Today (T0): 5 days past maturity → past grace");
@@ -169,13 +173,13 @@ async function main() {
   // ── Deposit #4: 7-day, 500 USDC (opened 8 days ago → in grace today) ──
   console.log("\n--- Deposit #4: 7-day, 500 USDC ---");
   const tx4 = await userSavingCore.openDeposit(3, toUSDC(500));
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 - 8 * 86400 }]);
+  await mineAt(T0 - 8 * 86400);
   await tx4.wait();
   console.log("  Opened at T0-8d (8 days ago), 7d plan → matures T0-1d");
   console.log("  Today (T0): 1 day past maturity → within grace");
 
   // ── Final: mine an empty block at T0 (so block.timestamp = today) ──
-  await ethers.provider.send("evm_mine", [{ timestamp: T0 }]);
+  await mineAt(T0);
 
   // Re-enable auto-mining
   await ethers.provider.send("evm_setAutomine", [true]);
