@@ -121,27 +121,29 @@ export default function ConnectWallet() {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div style={{ textAlign: 'right' }}>
-        <div className="font-mono" style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-          {formatUSDC(usdcBalance)} <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>USDC</span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+        <div style={{ textAlign: 'right' }}>
+          <div className="font-mono" style={{ fontSize: 14, fontWeight: 700, color: '#D4A017' }}>
+            {formatUSDC(usdcBalance)} <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>USDC</span>
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <input type="number" min="0" step="any"
-          value={faucetAmount}
-          onChange={(e) => setFaucetAmount(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleFaucet()}
-          placeholder="Số USDC"
-          style={{
-            width: 70, height: 28, fontSize: 11, padding: '0 6px', border: '1px solid #ECE8E1',
-            borderRadius: 6, background: '#fff', color: '#1F1F1F', outline: 'none',
-          }}
-        />
-        <button className="btn btn-outline" style={{ height: 28, fontSize: 11, padding: '0 8px', whiteSpace: 'nowrap' }}
-          onClick={handleFaucet} disabled={faucetLoading}>
-          {faucetLoading ? 'Đang mint...' : 'Mint'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input type="number" min="0" step="any"
+            value={faucetAmount}
+            onChange={(e) => setFaucetAmount(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleFaucet()}
+            placeholder="Số USDC"
+            style={{
+              width: 70, height: 28, fontSize: 11, padding: '0 6px', border: '1px solid #ECE8E1',
+              borderRadius: 6, background: '#fff', color: '#1F1F1F', outline: 'none',
+            }}
+          />
+          <button className="btn btn-outline" style={{ height: 28, fontSize: 11, padding: '0 8px', whiteSpace: 'nowrap' }}
+            onClick={handleFaucet} disabled={faucetLoading}>
+            {faucetLoading ? 'Đang mint...' : 'Mint'}
+          </button>
+        </div>
       </div>
 
       <span className="badge badge-success">
